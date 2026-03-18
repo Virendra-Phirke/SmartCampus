@@ -6,6 +6,7 @@ import BottomNav from '@/components/BottomNav';
 import QuickAccess from '@/components/QuickAccess';
 import PlaceholderTab from '@/components/PlaceholderTab';
 import type { CampusBuilding } from '@/data/campusData';
+import { MapPin } from 'lucide-react';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('map');
@@ -16,7 +17,7 @@ const Index = () => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserLocation([pos.coords.latitude, pos.coords.longitude]),
-        () => {} // silently fail
+        () => {}
       );
     }
   }, []);
@@ -30,8 +31,8 @@ const Index = () => {
     <div className="h-full flex flex-col bg-background relative overflow-hidden">
       {activeTab === 'map' ? (
         <>
-          {/* Map fills full screen */}
-          <div className="absolute inset-0">
+          {/* Map layer - behind everything */}
+          <div className="absolute inset-0 z-0">
             <CampusMap
               selectedBuilding={selectedBuilding}
               onSelectBuilding={setSelectedBuilding}
@@ -39,23 +40,40 @@ const Index = () => {
             />
           </div>
 
-          {/* Search overlay */}
-          <div className="absolute top-0 left-0 right-0 z-30 p-4 pt-[max(env(safe-area-inset-top),1rem)] space-y-3">
-            <div className="flex items-center gap-3 mb-1">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center glow-primary">
-                <span className="font-heading font-bold text-primary-foreground text-xs">CM</span>
+          {/* Top overlay - header + search + quick access */}
+          <div className="relative z-20 pointer-events-none">
+            <div className="pointer-events-auto bg-gradient-to-b from-background via-background/90 to-transparent pb-8 px-4 pt-[max(env(safe-area-inset-top),12px)]">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center glow-primary">
+                    <MapPin className="w-4 h-4 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <h1 className="font-heading font-bold text-foreground text-sm leading-tight">CampusMate</h1>
+                    <p className="text-[10px] text-muted-foreground leading-tight">P R Pote College</p>
+                  </div>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                  <span className="text-xs font-medium text-secondary-foreground">👤</span>
+                </div>
               </div>
-              <h1 className="font-heading font-semibold text-foreground text-base">CampusMate</h1>
+
+              {/* Search */}
+              <SearchBar onSelect={handleSelectBuilding} />
+
+              {/* Quick access */}
+              <div className="mt-3">
+                <QuickAccess onSelect={handleSelectBuilding} />
+              </div>
             </div>
-            <SearchBar onSelect={handleSelectBuilding} />
-            <QuickAccess onSelect={handleSelectBuilding} />
           </div>
 
-          {/* Bottom sheet for selected building */}
+          {/* Bottom sheet */}
           <BottomSheet building={selectedBuilding} onClose={() => setSelectedBuilding(null)} />
         </>
       ) : (
-        <div className="flex-1 pt-[max(env(safe-area-inset-top),1rem)] pb-20">
+        <div className="flex-1 pt-[max(env(safe-area-inset-top),12px)] pb-20">
           {activeTab === 'attendance' && (
             <PlaceholderTab
               title="QR Attendance"
@@ -77,7 +95,7 @@ const Index = () => {
         </div>
       )}
 
-      {/* Bottom navigation */}
+      {/* Bottom navigation - always on top */}
       <BottomNav active={activeTab} onNavigate={setActiveTab} />
     </div>
   );
