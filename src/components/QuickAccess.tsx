@@ -6,22 +6,22 @@ interface QuickAccessProps {
 }
 
 const quickItems = buildings.filter((b) =>
-  ['canteen', 'library', 'admin-block', 'auditorium'].includes(b.id)
+  ['canteen', 'library', 'admin-block', 'auditorium', 'sports-complex'].includes(b.id)
 );
 
 const QuickAccess = ({ onSelect }: QuickAccessProps) => {
   return (
-    <div className="flex gap-2 overflow-x-auto no-scrollbar px-1">
+    <div className="flex gap-2 overflow-x-auto no-scrollbar">
       {quickItems.map((b, i) => (
         <motion.button
           key={b.id}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.05 }}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: i * 0.04 }}
           onClick={() => onSelect(b)}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl glass shrink-0 text-sm font-medium text-foreground hover:bg-secondary/50 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/80 backdrop-blur-sm border border-border/30 shrink-0 text-xs font-medium text-secondary-foreground active:scale-95 transition-transform"
         >
-          <span>{categoryIcons[b.category]}</span>
+          <span className="text-sm">{categoryIcons[b.category]}</span>
           <span className="whitespace-nowrap">{b.shortName}</span>
         </motion.button>
       ))}
