@@ -10,9 +10,84 @@ export interface CampusBuilding {
   departments?: string[];
 }
 
-// P R Pote College of Engineering and Management, Amravati
+export interface Campus {
+  id: string;
+  name: string;
+  shortName: string;
+  lat: number;
+  lng: number;
+  zoom: number;
+  address: string;
+}
+
+export const campuses: Campus[] = [
+  {
+    id: "pote-amravati",
+    name: "P R Pote College of Engineering and Management",
+    shortName: "PR Pote",
+    lat: 20.986214,
+    lng: 77.758666,
+    zoom: 17,
+    address: "Pote Estate, Kathora Rd, Amravati 444602"
+  },
+  {
+    id: "sipna-amravati",
+    name: "Sipna College of Engineering & Technology",
+    shortName: "Sipna",
+    lat: 20.881389,
+    lng: 77.747778,
+    zoom: 16,
+    address: "Infront of Nemani Godown, Badnera Road, Amravati 444701"
+  },
+  {
+    id: "gcoea",
+    name: "Government College of Engineering",
+    shortName: "GCOEA",
+    lat: 20.957130,
+    lng: 77.756920,
+    zoom: 16,
+    address: "Kathora Naka, Amravati 444604"
+  },
+  {
+    id: "sgbau-amravati",
+    name: "Sant Gadge Baba Amravati University",
+    shortName: "SGBAU",
+    lat: 20.9255,
+    lng: 77.7713,
+    zoom: 15,
+    address: "Tapovan Road, Camp, Amravati 444602"
+  },
+  {
+    id: "ssgmce-shegaon",
+    name: "Shri Sant Gajanan Maharaj College of Engineering",
+    shortName: "SSGMCE Shegaon",
+    lat: 20.7936,
+    lng: 76.6891,
+    zoom: 16,
+    address: "Khamgaon Road, Shegaon, Buldhana 444203"
+  },
+  {
+    id: "coet-akola",
+    name: "College of Engineering & Technology",
+    shortName: "COETA Akola",
+    lat: 20.6721,
+    lng: 77.0163,
+    zoom: 16,
+    address: "Babhulgaon (Jh.), NH-6, Akola 444104"
+  },
+  {
+    id: "anuradha-chikhli",
+    name: "Anuradha Engineering College",
+    shortName: "Anuradha Chikhli",
+    lat: 20.356326,
+    lng: 76.218767,
+    zoom: 16,
+    address: "Anuradha Nagar, Sakegaon Road, Chikhli, Buldhana 443201"
+  }
+];
+
 // P R Pote Patil College of Engineering & Management, Amravati
-// Actual location: Pote Estate, Kathora Rd, Amravati 444602
+// Pote Estate, Kathora Rd, Amravati 444602
 export const CAMPUS_CENTER: [number, number] = [20.9878, 77.7575];
 export const CAMPUS_ZOOM = 17;
 
@@ -70,6 +145,17 @@ export const buildings: CampusBuilding[] = [
     description: 'E&TC labs including VLSI, embedded systems, and communication labs.',
     floors: 3,
     departments: ['Electronics & Telecommunication'],
+  },
+  {
+    id: 'ai-ds-block',
+    name: 'AI & Data Science Block',
+    shortName: 'AI & DS',
+    category: 'academic',
+    lat: 20.9880,
+    lng: 77.7578,
+    description: 'Department of Artificial Intelligence and Data Science with ML labs and smart classrooms.',
+    floors: 3,
+    departments: ['Artificial Intelligence', 'Data Science'],
   },
   {
     id: 'library',
@@ -139,6 +225,26 @@ export const buildings: CampusBuilding[] = [
     lat: 20.9873,
     lng: 77.7558,
     description: 'Hands-on workshop for first-year engineering students.',
+    floors: 1,
+  },
+  {
+    id: 'parking',
+    name: 'Main Parking Area',
+    shortName: 'Parking',
+    category: 'facility',
+    lat: 20.9862,
+    lng: 77.7570,
+    description: 'Two-wheeler and four-wheeler parking with security booth.',
+    floors: 1,
+  },
+  {
+    id: 'gate-main',
+    name: 'Main Gate',
+    shortName: 'Main Gate',
+    category: 'admin',
+    lat: 20.9860,
+    lng: 77.7575,
+    description: 'Primary campus entrance with security checkpoint.',
     floors: 1,
   },
 ];
