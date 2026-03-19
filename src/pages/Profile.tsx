@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useUser, useClerk } from '@clerk/clerk-react';
 import {
     User, Mail, LogOut, MapPin, CheckCircle, Calendar, TrendingUp,
     Shield, GraduationCap, Clock, ChevronRight, Settings, BookOpen, Users,
-    Pencil, Save, X, Phone, Home, Briefcase
+    Pencil, Save, X, Phone, Home, Briefcase, Camera
 } from 'lucide-react';
 import { useAttendance } from '@/hooks/useAttendance';
 import {
@@ -37,6 +37,8 @@ const Profile = () => {
         staff_type: '',
     });
     const [showConfirm, setShowConfirm] = useState(false);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
 
     // Start editing
     const startEditing = () => {
@@ -78,6 +80,24 @@ const Profile = () => {
         }
     };
 
+    const handleAvatarPick = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !user) return;
+
+        setIsUploadingAvatar(true);
+        try {
+            await user.setProfileImage({ file });
+            await user.reload();
+            toast.success('Profile picture updated');
+        } catch (err) {
+            console.error('Failed to update profile picture:', err);
+            toast.error('Failed to update profile picture');
+        } finally {
+            setIsUploadingAvatar(false);
+            event.target.value = '';
+        }
+    };
+
     // Chart data
     const chartData = Array.from({ length: 7 }, (_, i) => {
         const day = subDays(new Date(), 6 - i);
@@ -103,7 +123,7 @@ const Profile = () => {
                     <p className="text-sm text-muted-foreground mt-0.5">Your campus dashboard</p>
                 </div>
                 {profile?.full_name && (
-                    <button onClick={() => signOut()} className="p-2 bg-destructive/10 text-destructive rounded-full hover:bg-destructive/20 transition-colors">
+                    <button title="Sign out" onClick={() => signOut()} className="p-2 bg-destructive/10 text-destructive rounded-full hover:bg-destructive/20 transition-colors">
                         <LogOut className="w-5 h-5" />
                     </button>
                 )}
@@ -126,12 +146,28 @@ const Profile = () => {
                         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -z-0"></div>
 
                         <div className="relative z-10 flex items-center gap-4">
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                            <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
                                 {user?.imageUrl ? (
                                     <img src={user.imageUrl} alt="Avatar" className="w-full h-full object-cover" />
                                 ) : (
                                     <User className="w-8 h-8 text-primary-foreground" />
                                 )}
+                                <button
+                                    onClick={() => avatarInputRef.current?.click()}
+                                    disabled={isUploadingAvatar}
+                                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-card border border-border text-foreground flex items-center justify-center"
+                                    title="Update profile picture"
+                                >
+                                    <Camera className="w-3 h-3" />
+                                </button>
+                                <input
+                                    ref={avatarInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleAvatarPick}
+                                    title="Choose profile picture"
+                                    className="hidden"
+                                />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h2 className="text-lg font-heading font-bold text-foreground truncate">
@@ -214,6 +250,7 @@ const Profile = () => {
                                         <input
                                             value={user?.username || profile?.username || '—'}
                                             disabled
+                                            title="Username"
                                             className="w-full bg-muted/20 border border-border/30 rounded-xl px-3 py-2.5 text-sm text-muted-foreground cursor-not-allowed"
                                         />
                                     </div>
@@ -222,6 +259,7 @@ const Profile = () => {
                                         <input
                                             value={user?.primaryEmailAddress?.emailAddress || '—'}
                                             disabled
+                                            title="Email"
                                             className="w-full bg-muted/20 border border-border/30 rounded-xl px-3 py-2.5 text-sm text-muted-foreground cursor-not-allowed"
                                         />
                                     </div>
@@ -233,6 +271,7 @@ const Profile = () => {
                                     <input
                                         value={editForm.full_name}
                                         onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                                        title="Full name"
                                         className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                                     />
                                 </div>
@@ -243,6 +282,7 @@ const Profile = () => {
                                     <select
                                         value={editForm.role}
                                         onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                                        title="Role"
                                         className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none"
                                     >
                                         <option value="student">Student</option>
@@ -266,6 +306,7 @@ const Profile = () => {
                                                 setEditForm({ ...editForm, department_id: e.target.value });
                                             }
                                         }}
+                                        title={editForm.role === 'student' ? 'Course or department' : 'Department'}
                                         className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none"
                                     >
                                         <option value="">Select...</option>
@@ -281,6 +322,7 @@ const Profile = () => {
                                             <select
                                                 value={editForm.year}
                                                 onChange={(e) => setEditForm({ ...editForm, year: e.target.value })}
+                                                title="Year"
                                                 className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
                                             >
                                                 <option value="">Select...</option>
@@ -292,6 +334,7 @@ const Profile = () => {
                                             <select
                                                 value={editForm.section}
                                                 onChange={(e) => setEditForm({ ...editForm, section: e.target.value })}
+                                                title="Section"
                                                 className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
                                             >
                                                 <option value="">Select...</option>
@@ -307,6 +350,7 @@ const Profile = () => {
                                         <select
                                             value={editForm.staff_type}
                                             onChange={(e) => setEditForm({ ...editForm, staff_type: e.target.value })}
+                                            title="Staff category"
                                             className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
                                         >
                                             <option value="">Select...</option>
@@ -332,6 +376,7 @@ const Profile = () => {
                                         <input
                                             value={editForm.role_id}
                                             onChange={(e) => setEditForm({ ...editForm, role_id: e.target.value })}
+                                            title="Role ID"
                                             className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                                         />
                                     </div>
@@ -341,6 +386,7 @@ const Profile = () => {
                                             value={editForm.mobile_no}
                                             onChange={(e) => setEditForm({ ...editForm, mobile_no: e.target.value })}
                                             type="tel"
+                                            title="Mobile number"
                                             className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                                         />
                                     </div>
@@ -353,6 +399,7 @@ const Profile = () => {
                                         value={editForm.address}
                                         onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
                                         rows={2}
+                                        title="Address"
                                         className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                                     />
                                 </div>

@@ -136,7 +136,7 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
     return (
         <div className="fixed inset-0 z-[1000] bg-background/95 backdrop-blur flex flex-col items-center justify-center p-4">
             <div className="absolute top-4 right-4 z-10">
-                <button onClick={onClose} className="p-3 bg-secondary rounded-full hover:bg-secondary/80 transition-colors shadow-sm">
+                <button onClick={onClose} title="Close QR generator" className="p-3 bg-secondary rounded-full hover:bg-secondary/80 transition-colors shadow-sm">
                     <X className="w-6 h-6" />
                 </button>
             </div>
@@ -174,6 +174,7 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                                 <select 
                                     value={collegeId} 
                                     onChange={(e) => setCollegeId(e.target.value)} 
+                                    title="College"
                                     className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
                                 >
                                     <option value="" disabled>Select College</option>
@@ -201,7 +202,7 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                                 <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
                                     <BookOpen className="w-3 h-3" /> Department / Branch
                                 </label>
-                                <select value={department} onChange={(e) => setDepartment(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
+                                <select title="Department" value={department} onChange={(e) => setDepartment(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
                                     {ENGINEERING_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                                 </select>
                             </div>
@@ -213,7 +214,7 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                                         <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
                                             <GraduationCap className="w-3 h-3" /> Year
                                         </label>
-                                        <select value={year} onChange={(e) => setYear(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
+                                        <select title="Year" value={year} onChange={(e) => setYear(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
                                             {STUDENT_YEARS.map(y => <option key={y.id} value={y.id}>{y.label}</option>)}
                                         </select>
                                     </div>
@@ -221,7 +222,7 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                                         <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
                                             <Users className="w-3 h-3" /> Section
                                         </label>
-                                        <select value={section} onChange={(e) => setSection(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
+                                        <select title="Section" value={section} onChange={(e) => setSection(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
                                             {CLASS_SECTIONS.map(s => <option key={s} value={s}>Section {s}</option>)}
                                         </select>
                                     </div>
@@ -231,7 +232,7 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                                     <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
                                         <Briefcase className="w-3 h-3" /> Staff Category
                                     </label>
-                                    <select value={staffType} onChange={(e) => setStaffType(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
+                                    <select title="Staff category" value={staffType} onChange={(e) => setStaffType(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
                                         <optgroup label="Teaching Staff">
                                             {STAFF_TYPES.filter(s => s.type === 'teaching').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                                         </optgroup>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import maplibregl from 'maplibre-gl';
+import maplibregl from '@/lib/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useColleges } from '@/hooks/useColleges';
 import type { College } from '@/lib/types';
@@ -216,6 +216,7 @@ const CampusSelectionMap = ({ onSelectCampus, userLocation }: CampusSelectionMap
                             />
                             <button
                                 onClick={() => { setShowSearch(false); setSearchQuery(''); }}
+                                title="Close search"
                                 className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center shrink-0 hover:bg-muted"
                             >
                                 <X className="w-3.5 h-3.5" />
@@ -239,10 +240,11 @@ const CampusSelectionMap = ({ onSelectCampus, userLocation }: CampusSelectionMap
             </div>
 
             {/* ═══ Layer switch (right side, above nav controls) ═══ */}
-            <div className="absolute right-3 z-[400]" style={{ bottom: pendingCollege ? '190px' : '36px' }}>
+            <div className={`absolute right-3 z-[400] ${pendingCollege ? 'bottom-[190px]' : 'bottom-9'}`}>
                 <div className="relative">
                     <button
                         onClick={() => setShowLayersMenu(!showLayersMenu)}
+                        title="Switch map layer"
                         className="w-10 h-10 bg-card text-foreground rounded-full shadow-xl flex items-center justify-center hover:bg-muted border border-border/50 transition-all active:scale-90"
                     >
                         <Layers className="w-4 h-4" />

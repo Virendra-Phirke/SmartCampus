@@ -46,6 +46,20 @@ export const useAttendance = () => {
         }) => {
             if (!userId) throw new Error('Not authenticated');
 
+            if (sessionId) {
+                const { data: existing, error: existingError } = await supabase
+                    .from('attendance_records')
+                    .select('id')
+                    .eq('user_id', userId)
+                    .eq('session_id', sessionId)
+                    .limit(1);
+
+                if (existingError) throw existingError;
+                if (existing && existing.length > 0) {
+                    throw new Error('Attendance already marked for this QR session');
+                }
+            }
+
             const { data, error } = await supabase
                 .from('attendance_records')
                 .insert({
@@ -94,6 +108,7 @@ export const useAttendance = () => {
             return data || [];
         },
         enabled: !!userId,
+        refetchInterval: 5000,
     });
 
     const todayCount = (attendanceQuery.data || []).filter((r) => {
@@ -107,6 +122,40 @@ export const useAttendance = () => {
         return new Date(r.checked_in_at) >= weekAgo;
     }).length;
 
+    const deleteSessionMutation = useMutation({
+        mutationFn: async (sessionId: string) => {
+            // Delete attendees first (cascade may handle this, but be safe)
+            await supabase
+                .from('attendance_records')
+                .delete()
+                .eq('session_id', sessionId);
+
+            const { error } = await supabase
+                .from('attendance_sessions')
+                .delete()
+                .eq('id', sessionId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['creator-sessions', userId] });
+        },
+    });
+
+    const updateSessionMutation = useMutation({
+        mutationFn: async ({ sessionId, updates }: { sessionId: string; updates: Partial<{ session_name: string; college_id: string; target_audience: string; department: string; year: string; section: string; staff_type: string }> }) => {
+            const { error } = await supabase
+                .from('attendance_sessions')
+                .update(updates)
+                .eq('id', sessionId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['creator-sessions', userId] });
+        },
+    });
+
     return {
         records: attendanceQuery.data || [],
         isLoading: attendanceQuery.isLoading,
@@ -117,5 +166,7 @@ export const useAttendance = () => {
         totalCount: (attendanceQuery.data || []).length,
         checkIn: checkInMutation.mutateAsync,
         isCheckingIn: checkInMutation.isPending,
+        deleteSession: deleteSessionMutation.mutateAsync,
+        updateSession: updateSessionMutation.mutateAsync,
     };
 };

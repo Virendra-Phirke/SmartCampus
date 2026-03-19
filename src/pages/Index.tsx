@@ -66,7 +66,7 @@ const Index = () => {
   const [manualSwitch, setManualSwitch] = useState(false);
 
   // Onboarding states
-  const [onboardingStep, setOnboardingStep] = useState<'none' | 'role' | 'profile'>('none');
+  const [onboardingStep, setOnboardingStep] = useState<'none' | 'role' | 'college' | 'profile'>('none');
   const [selectedRole, setSelectedRole] = useState('student');
   const [onboardForm, setOnboardForm] = useState({
     full_name: '',
@@ -97,14 +97,31 @@ const Index = () => {
 
   // ── Check if onboarding needed ──
   useEffect(() => {
-    if (!profileLoading && profile && selectedCampus && !profile.full_name) {
-      if (!profile.role || profile.role === 'student') {
-        setOnboardingStep('role');
-      } else {
-        setOnboardingStep('profile');
-      }
+    if (profileLoading) return;
+
+    if (!profile?.role) {
+      setOnboardingStep('role');
+      return;
     }
-  }, [profileLoading, profile, selectedCampus]);
+
+    if (!profile?.college_id) {
+      setOnboardingStep('college');
+      return;
+    }
+
+    if (!profile?.full_name) {
+      setOnboardingStep('profile');
+      return;
+    }
+
+    setOnboardingStep('none');
+  }, [profileLoading, profile?.role, profile?.college_id, profile?.full_name]);
+
+  useEffect(() => {
+    if (profile?.role === 'student' || profile?.role === 'faculty') {
+      setSelectedRole(profile.role);
+    }
+  }, [profile?.role]);
 
   // ── GPS tracking ──
   useEffect(() => {
@@ -125,22 +142,28 @@ const Index = () => {
   const handleSelectCampus = useCallback(async (college: College) => {
     setSelectedCampus(college);
     setManualSwitch(false);
-    if (profile && !profile.college_id) {
-      try { await upsertProfile.mutateAsync({ college_id: college.id }); } catch { }
+    try {
+      await upsertProfile.mutateAsync({ college_id: college.id });
+      if (onboardingStep === 'college') {
+        setOnboardingStep(profile?.full_name ? 'none' : 'profile');
+      }
+    } catch {
+      toast.error('Failed to save selected college');
     }
-  }, [profile, upsertProfile]);
+  }, [upsertProfile, onboardingStep, profile?.full_name]);
 
   // ── Switch campus handler ──
   const handleSwitchCampus = () => {
     setManualSwitch(true);
     setSelectedCampus(null);
+    setOnboardingStep('college');
   };
 
   // ── Onboarding: save role ──
   const handleRoleSave = async () => {
     try {
       await upsertProfile.mutateAsync({ role: selectedRole as any });
-      setOnboardingStep('profile');
+      setOnboardingStep('college');
     } catch {
       toast.error('Failed to save role');
     }
@@ -192,6 +215,19 @@ const Index = () => {
   const fmtDist = (m: number) => m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
 
   // ── Campus Selection Screen ──
+  if (onboardingStep === 'college') {
+    return (
+      <div className="h-full w-full relative">
+        <CampusSelectionMap onSelectCampus={handleSelectCampus} userLocation={userLocation} />
+        <div className="absolute top-[max(env(safe-area-inset-top),10px)] left-1/2 -translate-x-1/2 z-[500]">
+          <div className="bg-card/90 backdrop-blur border border-border/50 rounded-full px-3 py-1.5 text-[11px] font-semibold">
+            Select your college to continue
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!selectedCampus) {
     return (
       <div className="h-full w-full">
@@ -210,7 +246,7 @@ const Index = () => {
               <MapPin className="w-8 h-8 text-primary" />
             </div>
             <h1 className="text-2xl font-heading font-bold">Welcome!</h1>
-            <p className="text-sm text-muted-foreground mt-1">Select your role at <span className="text-primary font-medium">{selectedCampus.short_name}</span></p>
+            <p className="text-sm text-muted-foreground mt-1">Select your role to set up your account</p>
           </div>
           <div className="space-y-2.5 mb-6">
             {ROLE_OPTIONS.map(r => (
@@ -296,6 +332,7 @@ const Index = () => {
                 {selectedRole === 'student' ? 'Course / Branch' : 'Department'}
               </label>
               <select
+                title={selectedRole === 'student' ? 'Course or department' : 'Department'}
                 value={selectedRole === 'student' ? onboardForm.course_id : onboardForm.department_id}
                 onChange={(e) => {
                   if (selectedRole === 'student') setOnboardForm({ ...onboardForm, course_id: e.target.value });
@@ -314,6 +351,7 @@ const Index = () => {
                 <div>
                   <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Year</label>
                   <select
+                    title="Year"
                     value={onboardForm.year}
                     onChange={(e) => setOnboardForm({ ...onboardForm, year: e.target.value })}
                     className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
@@ -325,6 +363,7 @@ const Index = () => {
                 <div>
                   <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Section</label>
                   <select
+                    title="Section"
                     value={onboardForm.section}
                     onChange={(e) => setOnboardForm({ ...onboardForm, section: e.target.value })}
                     className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
@@ -340,6 +379,7 @@ const Index = () => {
               <div>
                 <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Staff Category</label>
                 <select
+                  title="Staff category"
                     value={onboardForm.staff_type}
                     onChange={(e) => setOnboardForm({ ...onboardForm, staff_type: e.target.value })}
                     className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
@@ -515,12 +555,14 @@ const Index = () => {
             <div className="absolute bottom-24 right-3 z-[400] flex flex-col gap-2 items-center">
               <button
                 onClick={() => setIsFollowing(true)}
+                title="Center on my location"
                 className={`w-10 h-10 bg-card/90 backdrop-blur border border-border/50 rounded-full flex items-center justify-center shadow-lg ${isFollowing ? 'ring-2 ring-primary' : ''}`}
               >
                 <Crosshair className="w-4 h-4 text-foreground" />
               </button>
               <button
                 onClick={() => setIsAddingLocation(true)}
+                title="Add location"
                 className="w-12 h-12 bg-primary text-primary-foreground rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-transform border-2 border-primary/20"
               >
                 <Plus className="w-5 h-5" />

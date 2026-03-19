@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import maplibregl from 'maplibre-gl';
+import maplibregl from '@/lib/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import * as turf from '@turf/turf';
 import { buildings as staticBuildings, categoryColors, type CampusBuilding } from '@/data/campusData';

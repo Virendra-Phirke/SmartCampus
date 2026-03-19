@@ -33,8 +33,9 @@ const QRScanner = ({ onScan, onClose }: QRScannerProps) => {
                     () => { } // ignore failures
                 );
                 setIsStarting(false);
-            } catch (err: any) {
-                setError(err?.message || 'Camera access denied. Please allow camera permissions.');
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : 'Camera access denied. Please allow camera permissions.';
+                setError(message);
                 setIsStarting(false);
             }
         };
@@ -56,6 +57,7 @@ const QRScanner = ({ onScan, onClose }: QRScannerProps) => {
             {/* Close button */}
             <button
                 onClick={onClose}
+                title="Close scanner"
                 className="absolute top-3 right-3 z-10 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background transition-colors"
             >
                 <X className="w-4 h-4 text-foreground" />
