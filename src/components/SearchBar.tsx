@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { buildings, categoryIcons, type CampusBuilding } from '@/data/campusData';
@@ -9,7 +9,9 @@ interface SearchBarProps {
 
 const SearchBar = ({ onSelect }: SearchBarProps) => {
   const [query, setQuery] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => {
     if (!query.trim()) return [];
@@ -25,27 +27,75 @@ const SearchBar = ({ onSelect }: SearchBarProps) => {
       .slice(0, 6);
   }, [query]);
 
-  const showResults = isFocused && query.trim().length > 0;
+  const showResults = (isFocused || isExpanded) && query.trim().length > 0;
+
+  const handleExpand = () => {
+    setIsExpanded(true);
+    setTimeout(() => inputRef.current?.focus(), 150);
+  };
+
+  const handleCollapse = () => {
+    setQuery('');
+    setIsExpanded(false);
+    setIsFocused(false);
+  };
+
+  // Close on outside click
+  useEffect(() => {
+    if (!isExpanded) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.search-container')) {
+        if (!query) handleCollapse();
+      }
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [isExpanded, query]);
 
   return (
-    <div className="relative w-full">
-      <div className="bg-secondary/90 backdrop-blur-lg rounded-2xl flex items-center gap-3 px-4 py-3 border border-border/40 shadow-lg shadow-black/20">
-        <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setTimeout(() => setIsFocused(false), 200)}
-          placeholder="Search buildings, labs, rooms..."
-          className="bg-transparent outline-none w-full text-foreground placeholder:text-muted-foreground font-body text-sm"
-        />
-        {query && (
-          <button onClick={() => setQuery('')} className="text-muted-foreground">
-            <X className="w-4 h-4" />
-          </button>
+    <div className="relative search-container">
+      <AnimatePresence mode="wait">
+        {!isExpanded ? (
+          /* ── Collapsed: Just an icon button ── */
+          <motion.button
+            key="icon"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.15 }}
+            onClick={handleExpand}
+            className="w-9 h-9 bg-secondary/90 backdrop-blur-lg rounded-xl flex items-center justify-center border border-border/40 shadow-lg shadow-black/20 hover:bg-secondary active:scale-95 transition-all"
+          >
+            <Search className="w-4 h-4 text-muted-foreground" />
+          </motion.button>
+        ) : (
+          /* ── Expanded: Full search input ── */
+          <motion.div
+            key="bar"
+            initial={{ opacity: 0, width: 36, scale: 0.95 }}
+            animate={{ opacity: 1, width: '100%', scale: 1 }}
+            exit={{ opacity: 0, width: 36, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="bg-secondary/90 backdrop-blur-lg rounded-2xl flex items-center gap-3 px-4 py-2.5 border border-border/40 shadow-lg shadow-black/20"
+          >
+            <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+              placeholder="Search buildings, labs, rooms..."
+              className="bg-transparent outline-none w-full text-foreground placeholder:text-muted-foreground font-body text-sm"
+            />
+            <button onClick={handleCollapse} className="text-muted-foreground hover:text-foreground transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
 
       <AnimatePresence>
         {showResults && (
@@ -67,7 +117,7 @@ const SearchBar = ({ onSelect }: SearchBarProps) => {
                   onClick={() => {
                     onSelect(b);
                     setQuery('');
-                    setIsFocused(false);
+                    handleCollapse();
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/60 active:bg-secondary/80 transition-colors text-left ${
                     i < results.length - 1 ? 'border-b border-border/30' : ''

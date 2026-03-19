@@ -37,10 +37,7 @@ const FILTER_OPTIONS = [
 
 const ROLE_OPTIONS = [
   { value: 'student', label: '🎓 Student', desc: 'Attend classes, scan QR' },
-  { value: 'faculty', label: '👨‍🏫 Faculty', desc: 'Create attendance, manage classes' },
-  { value: 'admin', label: '🛡️ Admin', desc: 'Full campus management' },
-  { value: 'staff', label: '👷 Staff', desc: 'Campus operations' },
-  { value: 'visitor', label: '👤 Visitor', desc: 'Explore campus' },
+  { value: 'faculty', label: '👨‍🏫 Teacher', desc: 'Create attendance, manage classes' },
 ];
 
 const Index = () => {
@@ -418,20 +415,20 @@ const Index = () => {
                     </button>
                   </div>
                 </div>
-                <button
-                  onClick={() => setActiveTab('profile')}
-                  className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex items-center justify-center border border-border/50"
-                >
-                  {user?.imageUrl ? (
-                    <img src={user.imageUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-[10px] font-medium text-secondary-foreground">{firstName.charAt(0)}</span>
-                  )}
-                </button>
+                <div className="flex items-center gap-2 flex-1 justify-end">
+                  <SearchBar onSelect={handleSelectBuilding} />
+                  <button
+                    onClick={() => setActiveTab('profile')}
+                    className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex items-center justify-center border border-border/50 shrink-0"
+                  >
+                    {user?.imageUrl ? (
+                      <img src={user.imageUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-[10px] font-medium text-secondary-foreground">{firstName.charAt(0)}</span>
+                    )}
+                  </button>
+                </div>
               </div>
-
-              {/* Search */}
-              <SearchBar onSelect={handleSelectBuilding} />
 
               {/* ─── Breadcrumb Row: Filter + Layer ─── */}
               <div className="mt-2 flex items-center gap-2">
