@@ -90,6 +90,7 @@ const Index = () => {
   const mapCenterRef = useRef<[number, number]>([0, 0]);
   const lastGpsUpdateMsRef = useRef(0);
   const lastGpsLocationRef = useRef<[number, number] | null>(null);
+  const gpsErrorToastShownRef = useRef(false);
 
   // ── Support deep link tab selection: /?tab=attendance ──
   useEffect(() => {
@@ -157,8 +158,7 @@ const Index = () => {
     const MIN_UPDATE_INTERVAL_MS = 1500;
     const MIN_MOVE_METERS = 4;
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
+    const handlePosition = (pos: GeolocationPosition) => {
         const next: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         const now = Date.now();
         const last = lastGpsLocationRef.current;
@@ -177,15 +177,59 @@ const Index = () => {
         setUserLocation(next);
         setUserAccuracy(Math.round(pos.coords.accuracy));
         if (pos.coords.heading != null) setUserHeading(pos.coords.heading);
+    };
+
+    let highAccuracyWatchId: number | null = null;
+    let lowAccuracyWatchId: number | null = null;
+
+    const startLowAccuracyWatch = () => {
+      if (lowAccuracyWatchId != null) return;
+      lowAccuracyWatchId = navigator.geolocation.watchPosition(
+        handlePosition,
+        () => { },
+        {
+          enableHighAccuracy: false,
+          timeout: 20000,
+          maximumAge: 15000,
+        }
+      );
+    };
+
+    highAccuracyWatchId = navigator.geolocation.watchPosition(
+      handlePosition,
+      (error) => {
+        // Android devices can fail high-accuracy frequently; fallback to network-based location
+        if (error.code === error.PERMISSION_DENIED) {
+          if (!gpsErrorToastShownRef.current) {
+            gpsErrorToastShownRef.current = true;
+            toast.error('Location permission denied. Please allow GPS in browser settings.');
+          }
+          return;
+        }
+        startLowAccuracyWatch();
       },
-      () => { },
       {
         enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 2000,
+        timeout: 20000,
+        maximumAge: 5000,
       }
     );
-    return () => navigator.geolocation.clearWatch(watchId);
+
+    // Try immediate first fix (helps Android warm up faster)
+    navigator.geolocation.getCurrentPosition(
+      handlePosition,
+      () => startLowAccuracyWatch(),
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 5000,
+      }
+    );
+
+    return () => {
+      if (highAccuracyWatchId != null) navigator.geolocation.clearWatch(highAccuracyWatchId);
+      if (lowAccuracyWatchId != null) navigator.geolocation.clearWatch(lowAccuracyWatchId);
+    };
   }, []);
 
   // ── Save college on first selection ──

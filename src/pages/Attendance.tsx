@@ -56,7 +56,7 @@ const calculateDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: num
     return earthRadiusKm * c;
 };
 
-const getCurrentLocation = (maxWaitMs = 2500): Promise<{ lat: number; lng: number; accuracy: number | null } | null> => {
+const getCurrentLocation = (maxWaitMs = 6000): Promise<{ lat: number; lng: number; accuracy: number | null } | null> => {
     return new Promise((resolve) => {
         if (!('geolocation' in navigator)) {
             resolve(null);
@@ -72,20 +72,29 @@ const getCurrentLocation = (maxWaitMs = 2500): Promise<{ lat: number; lng: numbe
 
         const fallbackTimer = window.setTimeout(() => done(null), maxWaitMs);
 
+        const onSuccess = (pos: GeolocationPosition) => {
+            window.clearTimeout(fallbackTimer);
+            done({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracy: pos.coords.accuracy ?? null,
+            });
+        };
+
         navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                window.clearTimeout(fallbackTimer);
-                done({
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy ?? null,
-                });
-            },
+            onSuccess,
             () => {
-                window.clearTimeout(fallbackTimer);
-                done(null);
+                // Android fallback: network-based location
+                navigator.geolocation.getCurrentPosition(
+                    onSuccess,
+                    () => {
+                        window.clearTimeout(fallbackTimer);
+                        done(null);
+                    },
+                    { enableHighAccuracy: false, timeout: maxWaitMs, maximumAge: 15000 }
+                );
             },
-            { enableHighAccuracy: true, timeout: maxWaitMs, maximumAge: 0 }
+            { enableHighAccuracy: true, timeout: maxWaitMs, maximumAge: 3000 }
         );
     });
 };
