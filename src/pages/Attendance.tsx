@@ -211,6 +211,10 @@ const Attendance = () => {
             scanInFlightRef.current = true;
 
             setShowScanner(false);
+            
+            // Allow the scanner to fully unmount and the DOM/focus to settle before opening the dialog.
+            // This prevents Radix UI AlertDialog from automatically dismissing when its trigger context is destroyed.
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             const normalizedData = (data || '').trim();
             const safeDecode = (value: string) => {
