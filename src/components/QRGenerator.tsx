@@ -6,6 +6,7 @@ import { useUser } from '@clerk/clerk-react';
 import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
 import { useColleges } from '@/hooks/useColleges';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 interface QRGeneratorProps {
     onClose: () => void;
@@ -22,14 +23,14 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
     
     // Selectors
     const [collegeId, setCollegeId] = useState(profile?.college_id || '');
-    const [department, setDepartment] = useState(profile?.department_id || profile?.course_id || ENGINEERING_DEPARTMENTS[0]);
+    const [department, setDepartment] = useState(profile?.department_id || profile?.course_id || '');
     
     // Student specific
-    const [year, setYear] = useState(STUDENT_YEARS[0].id);
-    const [section, setSection] = useState(CLASS_SECTIONS[0]);
+    const [year, setYear] = useState('');
+    const [section, setSection] = useState('');
     
     // Staff specific
-    const [staffType, setStaffType] = useState(STAFF_TYPES[0].id);
+    const [staffType, setStaffType] = useState('');
 
     // Target Audience (who is this QR for)
     const [targetAudience, setTargetAudience] = useState<'students' | 'staff'>('students');
@@ -73,10 +74,7 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
             toast.error('Please enter a session name');
             return;
         }
-        if (!collegeId) {
-            toast.error('Please select a college');
-            return;
-        }
+        // collegeId, department, year, section are optional
         
         setIsGenerating(true);
         try {
@@ -84,12 +82,12 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                 .from('attendance_sessions')
                 .insert({
                     session_name: sessionName.trim(),
-                    college_id: collegeId,
+                    college_id: collegeId || null,
                     target_audience: targetAudience,
-                    department,
-                    year: targetAudience === 'students' ? year : null,
-                    section: targetAudience === 'students' ? section : null,
-                    staff_type: targetAudience === 'staff' ? staffType : null,
+                    department: department || null,
+                    year: targetAudience === 'students' && year ? year : null,
+                    section: targetAudience === 'students' && section ? section : null,
+                    staff_type: targetAudience === 'staff' && staffType ? staffType : null,
                     created_by: user?.id,
                 })
                 .select()
