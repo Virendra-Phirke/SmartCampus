@@ -18,9 +18,9 @@ export const useProfile = () => {
                 .from('user_profiles')
                 .select('*')
                 .eq('clerk_user_id', user.id)
-                .single();
+                .maybeSingle();
 
-            if (error && error.code !== 'PGRST116') { // PGRST116 is 'not found'
+            if (error) {
                 console.error('Error fetching profile:', error);
                 throw error;
             }
@@ -39,6 +39,10 @@ export const useProfile = () => {
                 clerk_user_id: user.id,
                 display_name: user.fullName || user.username || 'User',
                 email: user.primaryEmailAddress?.emailAddress || '',
+                role: profile?.role || 'student',
+                year: profileData.year || null,
+                section: profileData.section || null,
+                staff_type: profileData.staff_type || null,
                 ...profileData,
             };
 

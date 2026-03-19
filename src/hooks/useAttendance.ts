@@ -36,9 +36,13 @@ export const useAttendance = () => {
         mutationFn: async ({
             buildingId,
             method,
+            sessionId,
+            metadata
         }: {
             buildingId: string;
             method: 'qr' | 'manual' | 'ble';
+            sessionId?: string;
+            metadata?: any;
         }) => {
             if (!userId) throw new Error('Not authenticated');
 
@@ -48,6 +52,8 @@ export const useAttendance = () => {
                     user_id: userId,
                     building_id: buildingId,
                     method,
+                    session_id: sessionId,
+                    metadata: metadata,
                     checked_in_at: new Date().toISOString(),
                 })
                 .select()
@@ -59,6 +65,35 @@ export const useAttendance = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['attendance', userId] });
         },
+    });
+
+    const creatorSessionsQuery = useQuery({
+        queryKey: ['creator-sessions', userId],
+        queryFn: async () => {
+            if (!userId) return [];
+            // Fetch sessions created by user, and join the attendees
+            const { data, error } = await supabase
+                .from('attendance_sessions')
+                .select(`
+                    *,
+                    attendance_records (
+                        id,
+                        user_id,
+                        checked_in_at,
+                        metadata
+                    )
+                `)
+                .eq('created_by', userId)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching creator sessions:', error);
+                return [];
+            }
+
+            return data || [];
+        },
+        enabled: !!userId,
     });
 
     const todayCount = (attendanceQuery.data || []).filter((r) => {
@@ -75,6 +110,8 @@ export const useAttendance = () => {
     return {
         records: attendanceQuery.data || [],
         isLoading: attendanceQuery.isLoading,
+        creatorSessions: creatorSessionsQuery.data || [],
+        isCreatorLoading: creatorSessionsQuery.isLoading,
         todayCount,
         weekCount,
         totalCount: (attendanceQuery.data || []).length,

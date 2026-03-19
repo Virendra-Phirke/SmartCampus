@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useUser, useClerk } from '@clerk/clerk-react';
 import {
     User, Mail, LogOut, MapPin, CheckCircle, Calendar, TrendingUp,
-    Shield, GraduationCap, Clock, ChevronRight, Settings, BookOpen, Users
+    Shield, GraduationCap, Clock, ChevronRight, Settings, BookOpen, Users,
+    Pencil, Save, X, Phone, Home, Briefcase
 } from 'lucide-react';
 import { useAttendance } from '@/hooks/useAttendance';
 import {
@@ -11,31 +13,85 @@ import {
 import { format, subDays, startOfDay, isSameDay } from 'date-fns';
 import { useProfile } from '@/hooks/useProfile';
 import ProfileForm from '@/components/ProfileForm';
+import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
+import { toast } from 'sonner';
 
 const Profile = () => {
     const { user } = useUser();
     const { signOut } = useClerk();
     const { records, todayCount, weekCount, totalCount } = useAttendance();
-    const { profile, isLoading } = useProfile();
+    const { profile, isLoading, upsertProfile } = useProfile();
 
-    // Compute attendance data for last 7 days chart
+    // Edit mode state
+    const [editing, setEditing] = useState(false);
+    const [editForm, setEditForm] = useState({
+        full_name: '',
+        mobile_no: '',
+        address: '',
+        role_id: '',
+        department_id: '',
+        course_id: '',
+        role: 'student' as string,
+        year: '',
+        section: '',
+        staff_type: '',
+    });
+    const [showConfirm, setShowConfirm] = useState(false);
+
+    // Start editing
+    const startEditing = () => {
+        setEditForm({
+            full_name: profile?.full_name || '',
+            mobile_no: profile?.mobile_no || '',
+            address: profile?.address || '',
+            role_id: profile?.role_id || '',
+            department_id: profile?.department_id || '',
+            course_id: profile?.course_id || '',
+            role: profile?.role || 'student',
+            year: profile?.year || '',
+            section: profile?.section || '',
+            staff_type: profile?.staff_type || '',
+        });
+        setEditing(true);
+    };
+
+    // Save handler
+    const handleSave = async () => {
+        setShowConfirm(false);
+        try {
+            await upsertProfile.mutateAsync({
+                full_name: editForm.full_name,
+                mobile_no: editForm.mobile_no,
+                address: editForm.address,
+                role_id: editForm.role_id,
+                department_id: editForm.department_id,
+                course_id: editForm.course_id,
+                role: editForm.role as any,
+                year: editForm.year,
+                section: editForm.section,
+                staff_type: editForm.staff_type,
+            });
+            setEditing(false);
+        } catch (err) {
+            console.error('Failed to update profile:', err);
+            toast.error('Failed to save profile.');
+        }
+    };
+
+    // Chart data
     const chartData = Array.from({ length: 7 }, (_, i) => {
         const day = subDays(new Date(), 6 - i);
         const dayStart = startOfDay(day);
         const count = records.filter((r) =>
             isSameDay(new Date(r.checked_in_at), dayStart)
         ).length;
-        return {
-            day: format(day, 'EEE'),
-            count,
-        };
+        return { day: format(day, 'EEE'), count };
     });
 
-    // Recent locations
     const recentLocations = records.slice(0, 5);
 
     return (
-        <div className="flex flex-col h-full px-4 pt-2 pb-4 overflow-y-auto">
+        <div className="flex flex-col min-h-full px-4 pt-2 pb-36 overflow-y-auto scrollbar-hide">
             {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -54,13 +110,12 @@ const Profile = () => {
             </motion.div>
 
             {/* Onboarding State */}
-            {!isLoading && !profile?.full_name ? (
+            {!isLoading && !profile?.full_name && !editing ? (
                 <div className="flex-1 flex items-center justify-center py-4">
                     <ProfileForm onComplete={() => { }} initialData={profile} />
                 </div>
             ) : (
                 <>
-
                     {/* User Card */}
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
@@ -84,8 +139,8 @@ const Profile = () => {
                                 </h2>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                     <Mail className="w-3 h-3 text-muted-foreground" />
-                                    <p className="text-xs text-muted-foreground">
-                                        {profile?.role_id || user?.primaryEmailAddress?.emailAddress}
+                                    <p className="text-xs text-muted-foreground truncate">
+                                        {user?.primaryEmailAddress?.emailAddress}
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-2 mt-2">
@@ -95,15 +150,260 @@ const Profile = () => {
                                         {profile?.role === 'admin' && <Shield className="w-3 h-3" />}
                                         {profile?.role}
                                     </span>
-                                    {profile?.department_id && (
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-bold uppercase tracking-wider flex items-center gap-1 truncate max-w-[100px]">
-                                            {profile.department_id}
+                                    {profile?.role_id && (
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-bold">
+                                            {profile.role_id}
                                         </span>
                                     )}
                                 </div>
                             </div>
                         </div>
                     </motion.div>
+
+                    {/* ─── Edit Profile Section ─── */}
+                    {!editing ? (
+                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+                            {/* Info Cards */}
+                            <div className="bg-card rounded-2xl border border-border/50 mb-4 overflow-hidden">
+                                {[
+                                    { icon: BookOpen, label: profile?.role === 'student' ? 'Course / Branch' : 'Department', value: profile?.department_id || profile?.course_id || 'Not set' },
+                                    ...(profile?.role === 'student' ? [
+                                        { icon: GraduationCap, label: 'Year', value: STUDENT_YEARS.find(y => y.id === profile?.year)?.label || profile?.year || 'Not set' },
+                                        { icon: Users, label: 'Section', value: profile?.section ? `Section ${profile?.section}` : 'Not set' }
+                                    ] : profile?.role === 'faculty' || profile?.role === 'staff' || profile?.role === 'admin' ? [
+                                        { icon: Briefcase, label: 'Staff Category', value: STAFF_TYPES.find(s => s.id === profile?.staff_type)?.label || profile?.staff_type || 'Not set' }
+                                    ] : []),
+                                    { icon: Phone, label: 'Mobile', value: profile?.mobile_no || 'Not set' },
+                                    { icon: Home, label: 'Address', value: profile?.address || 'Not set' },
+                                ].map((item, i, arr) => (
+                                    <div key={item.label} className={`flex items-center gap-3 px-4 py-3 ${i < arr.length - 1 ? 'border-b border-border/20' : ''}`}>
+                                        <item.icon className="w-4 h-4 text-primary shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{item.label}</p>
+                                            <p className="text-sm text-foreground truncate">{item.value}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={startEditing}
+                                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary/10 text-primary font-semibold text-sm border border-primary/20 hover:bg-primary/20 transition-colors mb-5"
+                            >
+                                <Pencil className="w-4 h-4" /> Edit Profile
+                            </button>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-card rounded-2xl p-4 border border-border/50 mb-5 space-y-4"
+                        >
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-sm font-bold text-foreground">Edit Profile</h3>
+                                <div className="flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
+                                    <Save className="w-3 h-3" /> Changes save to database
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                {/* Read-only: Username & Email */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1">🔒 Username</label>
+                                        <input
+                                            value={user?.username || profile?.username || '—'}
+                                            disabled
+                                            className="w-full bg-muted/20 border border-border/30 rounded-xl px-3 py-2.5 text-sm text-muted-foreground cursor-not-allowed"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1">🔒 Email</label>
+                                        <input
+                                            value={user?.primaryEmailAddress?.emailAddress || '—'}
+                                            disabled
+                                            className="w-full bg-muted/20 border border-border/30 rounded-xl px-3 py-2.5 text-sm text-muted-foreground cursor-not-allowed"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Full Name */}
+                                <div>
+                                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1">Full Name</label>
+                                    <input
+                                        value={editForm.full_name}
+                                        onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                                        className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    />
+                                </div>
+
+                                {/* Role Selector */}
+                                <div>
+                                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1">Role</label>
+                                    <select
+                                        value={editForm.role}
+                                        onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                                        className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+                                    >
+                                        <option value="student">Student</option>
+                                        <option value="faculty">Faculty</option>
+                                        <option value="admin">Admin</option>
+                                        <option value="visitor">Visitor</option>
+                                    </select>
+                                </div>
+
+                                {/* Department / Course — based on selected role */}
+                                <div>
+                                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1">
+                                        {editForm.role === 'student' ? 'Course / Department' : 'Department'}
+                                    </label>
+                                    <select
+                                        value={editForm.role === 'student' ? editForm.course_id : editForm.department_id}
+                                        onChange={(e) => {
+                                            if (editForm.role === 'student') {
+                                                setEditForm({ ...editForm, course_id: e.target.value });
+                                            } else {
+                                                setEditForm({ ...editForm, department_id: e.target.value });
+                                            }
+                                        }}
+                                        className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+                                    >
+                                        <option value="">Select...</option>
+                                        {ENGINEERING_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+
+                                {/* Role Specific Selectors */}
+                                {editForm.role === 'student' && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1">Year</label>
+                                            <select
+                                                value={editForm.year}
+                                                onChange={(e) => setEditForm({ ...editForm, year: e.target.value })}
+                                                className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
+                                            >
+                                                <option value="">Select...</option>
+                                                {STUDENT_YEARS.map(y => <option key={y.id} value={y.id}>{y.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1">Section</label>
+                                            <select
+                                                value={editForm.section}
+                                                onChange={(e) => setEditForm({ ...editForm, section: e.target.value })}
+                                                className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
+                                            >
+                                                <option value="">Select...</option>
+                                                {CLASS_SECTIONS.map(s => <option key={s} value={s}>Section {s}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {(editForm.role === 'faculty' || editForm.role === 'staff' || editForm.role === 'admin') && (
+                                    <div>
+                                        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1">Staff Category</label>
+                                        <select
+                                            value={editForm.staff_type}
+                                            onChange={(e) => setEditForm({ ...editForm, staff_type: e.target.value })}
+                                            className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
+                                        >
+                                            <option value="">Select...</option>
+                                            <optgroup label="Teaching Staff">
+                                                {STAFF_TYPES.filter(s => s.type === 'teaching').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                            </optgroup>
+                                            <optgroup label="Non-Teaching Staff">
+                                                {STAFF_TYPES.filter(s => s.type === 'non-teaching').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                            </optgroup>
+                                            <optgroup label="Admin">
+                                                {STAFF_TYPES.filter(s => s.type === 'admin').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                            </optgroup>
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Mobile + Role ID */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1">
+                                            {editForm.role === 'student' ? 'Roll No.' : 'ID / Register No.'}
+                                        </label>
+                                        <input
+                                            value={editForm.role_id}
+                                            onChange={(e) => setEditForm({ ...editForm, role_id: e.target.value })}
+                                            className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1">Mobile No.</label>
+                                        <input
+                                            value={editForm.mobile_no}
+                                            onChange={(e) => setEditForm({ ...editForm, mobile_no: e.target.value })}
+                                            type="tel"
+                                            className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Address */}
+                                <div>
+                                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider pl-1">Address</label>
+                                    <textarea
+                                        value={editForm.address}
+                                        onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                                        rows={2}
+                                        className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => setEditing(false)}
+                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-muted text-foreground font-medium text-sm border border-border hover:bg-muted/80 transition-colors"
+                                >
+                                    <X className="w-4 h-4" /> Discard
+                                </button>
+                                <button
+                                    onClick={() => setShowConfirm(true)}
+                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 active:scale-[0.98] transition-all"
+                                >
+                                    <Save className="w-4 h-4" /> Save
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* ─── Confirm Dialog ─── */}
+                    {showConfirm && (
+                        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 px-6">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+                            >
+                                <h3 className="text-lg font-bold text-foreground mb-2">Save Changes?</h3>
+                                <p className="text-sm text-muted-foreground mb-5">
+                                    Your profile information will be updated in the database.
+                                </p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowConfirm(false)}
+                                        className="flex-1 py-2.5 rounded-xl bg-muted text-foreground font-medium text-sm border border-border"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSave}
+                                        className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-lg"
+                                    >
+                                        Save
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
 
                     {/* Stats */}
                     <motion.div
@@ -188,8 +488,7 @@ const Profile = () => {
                             {recentLocations.map((record, i) => (
                                 <div
                                     key={record.id}
-                                    className={`flex items-center gap-3 px-4 py-3 ${i < recentLocations.length - 1 ? 'border-b border-border/20' : ''
-                                        }`}
+                                    className={`flex items-center gap-3 px-4 py-3 ${i < recentLocations.length - 1 ? 'border-b border-border/20' : ''}`}
                                 >
                                     <MapPin className="w-4 h-4 text-primary shrink-0" />
                                     <div className="flex-1 min-w-0">
@@ -231,8 +530,6 @@ const Profile = () => {
                             </button>
                         ))}
                     </motion.div>
-
-                    {/* Sign Out (Moved to top right, so just empty placeholder or remove this) */}
                 </>
             )}
         </div>

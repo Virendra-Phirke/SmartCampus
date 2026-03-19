@@ -9,7 +9,7 @@ export default function AdminPanel() {
     const [searchQuery, setSearchQuery] = useState('');
 
     return (
-        <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden bg-background">
+        <div className="flex flex-col h-full overflow-hidden bg-background">
 
             {/* Header */}
             <div className="px-4 pt-6 pb-4 bg-card border-b border-border shadow-sm z-10">

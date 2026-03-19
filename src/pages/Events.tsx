@@ -129,7 +129,7 @@ const Events = () => {
     const { announcements } = useAnnouncements();
 
     return (
-        <div className="flex flex-col h-full px-4 pt-2 pb-4 overflow-y-auto">
+        <div className="flex flex-col h-full px-4 pt-2 pb-32 overflow-y-auto">
             {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -10 }}

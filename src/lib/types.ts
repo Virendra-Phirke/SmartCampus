@@ -1,5 +1,16 @@
 // ─── Database Types ───────────────────────────────────────
 
+export interface College {
+    id: string;
+    name: string;
+    short_name: string;
+    lat: number;
+    lng: number;
+    zoom: number;
+    address: string;
+    created_at: string;
+}
+
 export interface Building {
     id: string;
     name: string;
@@ -35,6 +46,21 @@ export interface AttendanceRecord {
     building_name?: string;
     checked_in_at: string;
     method: 'qr' | 'manual' | 'ble';
+    session_id?: string | null;
+    metadata?: any | null;
+    created_at: string;
+}
+
+export interface AttendanceSession {
+    id: string;
+    session_name: string;
+    college_id?: string | null;
+    target_audience?: string | null;
+    department?: string | null;
+    year?: string | null;
+    section?: string | null;
+    staff_type?: string | null;
+    created_by?: string | null;
     created_at: string;
 }
 
@@ -52,7 +78,7 @@ export interface UserProfile {
     clerk_user_id: string;
     display_name: string;
     email: string;
-    role: 'student' | 'faculty' | 'admin' | 'visitor';
+    role: 'student' | 'faculty' | 'admin' | 'staff' | 'visitor';
 
     // Extended Profile Fields
     full_name?: string | null;
@@ -63,6 +89,14 @@ export interface UserProfile {
     role_id?: string | null;
     department_id?: string | null;
     course_id?: string | null;
+    year?: string | null;
+    section?: string | null;
+    staff_type?: string | null;
+
+    // College & Identity
+    college_id?: string | null;
+    username?: string | null;
+    image_url?: string | null;
 
     created_at: string;
 }

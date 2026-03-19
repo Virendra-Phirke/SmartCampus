@@ -8,6 +8,7 @@ export default function SignUpPage() {
     const { isLoaded, signUp, setActive } = useSignUp();
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
+    const [username, setUsername] = useState("");
     const [emailAddress, setEmailAddress] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -54,7 +55,7 @@ export default function SignUpPage() {
                 password,
                 firstName: firstName.trim(),
                 lastName: lastName.trim(),
-                username: emailAddress.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') + Math.floor(Math.random() * 1000),
+                username: username.trim().toLowerCase(),
             });
 
             // send the email
@@ -167,6 +168,22 @@ export default function SignUpPage() {
                             </div>
 
                             <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-foreground pl-1">Username</label>
+                                <div className="relative">
+                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                    <input
+                                        type="text"
+                                        value={username}
+                                        onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase())}
+                                        required
+                                        className="w-full bg-muted/30 border border-border/60 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-foreground"
+                                        placeholder="choose_username"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-muted-foreground pl-1">Letters, numbers, underscores only</p>
+                            </div>
+
+                            <div className="space-y-1.5">
                                 <label className="text-xs font-medium text-foreground pl-1">Email Address</label>
                                 <div className="relative">
                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -251,7 +268,7 @@ export default function SignUpPage() {
 
                             <button
                                 type="submit"
-                                disabled={isLoading || !firstName || !lastName || !emailAddress || !isPasswordValid || !confirmPassword || password !== confirmPassword}
+                                disabled={isLoading || !firstName || !lastName || !username || !emailAddress || !isPasswordValid || !confirmPassword || password !== confirmPassword}
                                 className="w-full flex items-center justify-center gap-2 py-3.5 mt-4 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none group shadow-lg shadow-primary/20"
                             >
                                 {isLoading ? (
