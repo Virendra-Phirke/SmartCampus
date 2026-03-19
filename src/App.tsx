@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import SignInPage from "./pages/SignIn";
 import SignUpPage from "./pages/SignUp";
+import QrSessionDetails from "./pages/QrSessionDetails";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,20 @@ const App = () => (
               <>
                 <SignedIn>
                   <Index />
+                </SignedIn>
+                <SignedOut>
+                  <Navigate to="/sign-in" replace />
+                </SignedOut>
+              </>
+            }
+          />
+
+          <Route
+            path="/attendance/session/:sessionId"
+            element={
+              <>
+                <SignedIn>
+                  <QrSessionDetails />
                 </SignedIn>
                 <SignedOut>
                   <Navigate to="/sign-in" replace />

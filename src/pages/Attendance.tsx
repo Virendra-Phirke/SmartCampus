@@ -12,6 +12,7 @@ import { format, isToday, isThisWeek } from 'date-fns';
 import { useProfile } from '@/hooks/useProfile';
 import { useUser } from '@clerk/clerk-react';
 import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
+import { useNavigate } from 'react-router-dom';
 
 type HistoryFilter = 'today' | 'week' | 'all';
 
@@ -29,6 +30,7 @@ interface ScannedPerson {
 }
 
 const Attendance = () => {
+    const navigate = useNavigate();
     const { user } = useUser();
     const { profile } = useProfile();
     const role = profile?.role || 'student';
@@ -275,13 +277,15 @@ const Attendance = () => {
                             const attendees = session.attendance_records || [];
                             
                             return (
-                                <motion.div key={session.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                                <motion.div
+                                    key={session.id}
+                                    onClick={() => navigate(`/attendance/session/${session.id}`)}
+                                    className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm cursor-pointer active:scale-[0.995] transition-transform"
+                                    title="Open QR session details"
+                                >
                                     {/* Session Header */}
                                     <div className="p-4 flex items-center justify-between">
-                                        <div
-                                            onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
-                                            className="flex-1 text-left hover:opacity-80 transition-opacity min-w-0 cursor-pointer"
-                                        >
+                                        <div className="flex-1 text-left hover:opacity-80 transition-opacity min-w-0">
                                             {editingSessionId === session.id ? (
                                                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                                     <input
@@ -482,7 +486,10 @@ const Attendance = () => {
                                                                 </p>
                                                             </div>
                                                             <button
-                                                                onClick={() => startEditDetails(session)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    startEditDetails(session);
+                                                                }}
                                                                 className="h-7 px-2 rounded-lg bg-muted/70 text-muted-foreground hover:text-foreground flex items-center gap-1 text-[10px] font-semibold"
                                                             >
                                                                 <Edit3 className="w-3 h-3" /> Edit fields

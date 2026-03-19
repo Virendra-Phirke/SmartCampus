@@ -1,0 +1,121 @@
+[
+  {
+    "college_name": "Government College of Engineering, Amravati",
+    "coordinates": {
+      "latitude": 20.9571631,
+      "longitude": 77.7567616
+    }
+  },
+  {
+    "college_name": "Prof. Ram Meghe Institute of Technology & Research, Badnera",
+    "coordinates": {
+      "latitude": 20.8546611,
+      "longitude": 77.7521753
+    }
+  },
+  {
+    "college_name": "Prof. Ram Meghe College of Engineering & Management, Badnera",
+    "coordinates": {
+      "latitude": 20.8570552,
+      "longitude": 77.7504028
+    }
+  },
+  {
+    "college_name": "Sipna College of Engineering & Technology",
+    "coordinates": {
+      "latitude": 20.8818647,
+      "longitude": 77.747173
+    }
+  },
+  {
+    "college_name": "P.R. Pote Patil College of Engineering & Management",
+    "coordinates": {
+      "latitude": 20.9877724,
+      "longitude": 77.7574925
+    }
+  },
+  {
+    "college_name": "P.R. Pote Patil Institute of Engineering & Research",
+    "coordinates": {
+      "latitude": 20.9877724,
+      "longitude": 77.7574925
+    }
+  },
+  {
+    "college_name": "H.V.P. Mandal's College of Engineering & Technology (HVPM COET)",
+    "coordinates": {
+      "latitude": 20.926861,
+      "longitude": 77.7429955
+    }
+  },
+  {
+    "college_name": "Dr. Rajendra Gode Institute of Technology & Research (IBSS)",
+    "coordinates": {
+      "latitude": 20.9425512,
+      "longitude": 77.8432462
+    }
+  },
+  {
+    "college_name": "Late Sau. Kamaltai Gawai Institute of Engineering & Technology",
+    "coordinates": {
+      "latitude": 20.9589252,
+      "longitude": 77.5019464
+    }
+  },
+  {
+    "college_name": "Dhamangaon Education Society's College of Engineering & Technology",
+    "coordinates": {
+      "latitude": 20.8039955,
+      "longitude": 78.1394193
+    }
+  },
+  {
+    "college_name": "Shri Shivaji Education Society's College of Engineering & Technology, Akola (COETA)",
+    "coordinates": {
+      "latitude": 20.7046875,
+      "longitude": 77.0928125
+    }
+  },
+  {
+    "college_name": "Manav School of Engineering & Technology, Akola (MKCT)",
+    "coordinates": {
+      "latitude": 20.6771178,
+      "longitude": 76.8668917
+    }
+  },
+  {
+    "college_name": "Shri Sant Gajanan Maharaj College of Engineering, Shegaon",
+    "coordinates": {
+      "latitude": 20.7804738,
+      "longitude": 76.6780264
+    }
+  },
+  {
+    "college_name": "Padmashri Dr. Vitthalrao Bikaji Kolte College of Engineering, Malkapur",
+    "coordinates": {
+      "latitude": 20.8976158,
+      "longitude": 76.2015752
+    }
+  },
+  {
+    "college_name": "Mauli College of Engineering & Technology, Shegaon",
+    "coordinates": {
+      "latitude": 20.7620834,
+      "longitude": 76.6501629
+    }
+  },
+  {
+    "college_name": "Anuradha College of Engineering & Technology, Chikhli",
+    "coordinates": {
+      "latitude": 20.3568321,
+      "longitude": 76.2237025
+    }
+  },
+  {
+    "college_name": "Rajarshi Shahu College of Engineering, Buldhana",
+    "coordinates": {
+      "latitude": 20.518876,
+      "longitude": 76.173964
+    }
+  }
+]

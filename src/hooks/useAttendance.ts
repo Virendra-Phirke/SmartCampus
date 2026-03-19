@@ -85,18 +85,10 @@ export const useAttendance = () => {
         queryKey: ['creator-sessions', userId],
         queryFn: async () => {
             if (!userId) return [];
-            // Fetch sessions created by user, and join the attendees
-            const { data, error } = await supabase
+            // Fetch sessions created by user
+            const { data: sessions, error } = await supabase
                 .from('attendance_sessions')
-                .select(`
-                    *,
-                    attendance_records (
-                        id,
-                        user_id,
-                        checked_in_at,
-                        metadata
-                    )
-                `)
+                .select('*')
                 .eq('created_by', userId)
                 .order('created_at', { ascending: false });
 
@@ -105,7 +97,32 @@ export const useAttendance = () => {
                 return [];
             }
 
-            return data || [];
+            if (!sessions || sessions.length === 0) return [];
+
+            const sessionIds = sessions.map((s: any) => s.id);
+
+            // Fetch all check-ins for these sessions separately (more reliable than embedded joins)
+            const { data: records, error: recordsError } = await supabase
+                .from('attendance_records')
+                .select('id, user_id, session_id, checked_in_at, metadata')
+                .in('session_id', sessionIds)
+                .order('checked_in_at', { ascending: false });
+
+            if (recordsError) {
+                console.error('Error fetching session attendance records:', recordsError);
+            }
+
+            const recordsBySession = new Map<string, any[]>();
+            (records || []).forEach((record: any) => {
+                const key = String(record.session_id || '');
+                if (!recordsBySession.has(key)) recordsBySession.set(key, []);
+                recordsBySession.get(key)?.push(record);
+            });
+
+            return sessions.map((session: any) => ({
+                ...session,
+                attendance_records: recordsBySession.get(String(session.id)) || [],
+            }));
         },
         enabled: !!userId,
         refetchInterval: 5000,
