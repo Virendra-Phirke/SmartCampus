@@ -31,7 +31,11 @@ const QRScanner = ({ onScan, onClose }: QRScannerProps) => {
                         if (scanHandledRef.current) return;
                         scanHandledRef.current = true;
                         onScan(decodedText);
-                        scanner.stop().catch(() => { });
+                        try {
+                            if (scanner.isScanning) {
+                                scanner.stop().catch(() => {});
+                            }
+                        } catch (e) {}
                     },
                     () => { } // ignore failures
                 );
@@ -46,7 +50,11 @@ const QRScanner = ({ onScan, onClose }: QRScannerProps) => {
         startScanner();
 
         return () => {
-            scanner.stop().catch(() => { });
+            try {
+                if (scanner.isScanning) {
+                    scanner.stop().catch(() => {});
+                }
+            } catch (e) {}
         };
     }, [onScan]);
 
