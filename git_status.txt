@@ -1,0 +1,43 @@
+interactive rebase in progress; onto 91c948d
+Last command done (1 command done):
+   pick 2d58216 # chore: update gitignore and remove .env from tracking
+No commands remaining.
+You are currently editing a commit while rebasing branch 'main' on '91c948d'.
+  (use "git commit --amend" to amend the current commit)
+  (use "git rebase --continue" once you are satisfied with your changes)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   package-lock.json
+	modified:   package.json
+	modified:   src/components/BottomSheet.tsx
+	modified:   src/components/CampusMap.tsx
+	modified:   src/components/CampusSelectionMap.tsx
+	modified:   src/components/ProfileForm.tsx
+	modified:   src/components/QRGenerator.tsx
+	modified:   src/components/QRScanner.tsx
+	modified:   src/components/QuickAccess.tsx
+	modified:   src/components/SearchBar.tsx
+	modified:   src/data/campusData.ts
+	modified:   src/hooks/useAttendance.ts
+	modified:   src/hooks/useBuildings.ts
+	modified:   src/hooks/useProfile.ts
+	modified:   src/index.css
+	modified:   src/lib/types.ts
+	modified:   src/pages/AdminPanel.tsx
+	modified:   src/pages/Attendance.tsx
+	modified:   src/pages/Index.tsx
+	modified:   src/pages/Profile.tsx
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	attendance_migration.sql
+	build_err.txt
+	build_out.txt
+	college_migration.sql
+	git_status.txt
+	seed_colleges.sql
+	src/hooks/useColleges.ts
+
+no changes added to commit (use "git add" and/or "git commit -a")
