@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { X, Download, QrCode, Calendar, Clock, BookOpen, Users, MapPin, GraduationCap, Building2, Briefcase } from 'lucide-react';
+import { X, Download, QrCode, Calendar, Clock, BookOpen, Users, MapPin, GraduationCap, Building2, Briefcase, ChevronDown, ChevronRight } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useUser } from '@clerk/clerk-react';
 import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
@@ -20,6 +20,8 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
 
     // Session details
     const [sessionName, setSessionName] = useState('');
+    const [sessionDescription, setSessionDescription] = useState('');
+    const [showOptionalScope, setShowOptionalScope] = useState(false);
     
     // Selectors
     const [collegeId, setCollegeId] = useState(profile?.college_id || '');
@@ -40,13 +42,6 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const qrRef = useRef<HTMLDivElement>(null);
 
-    // Default to colleges first if available but not set
-    useEffect(() => {
-        if (!collegeId && colleges && colleges.length > 0) {
-            setCollegeId(colleges[0].id);
-        }
-    }, [collegeId, colleges]);
-
     const qrPayload = JSON.stringify({
         type: 'CAMPUSMATE_ATTENDANCE',
         session_id: sessionId,
@@ -60,9 +55,12 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
         },
         session: {
             name: sessionName || 'Attendance Session',
-            targetAudience,
-            department,
-            ...(targetAudience === 'students' ? { year, section } : { staffType }),
+            description: sessionDescription || '',
+            ...(showOptionalScope ? {
+                targetAudience,
+                department,
+                ...(targetAudience === 'students' ? { year, section } : { staffType }),
+            } : {}),
             date: new Date().toISOString().split('T')[0],
             time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
             createdAt: new Date().toISOString(),
@@ -82,12 +80,13 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                 .from('attendance_sessions')
                 .insert({
                     session_name: sessionName.trim(),
+                    description: sessionDescription.trim() || null,
                     college_id: collegeId || null,
-                    target_audience: targetAudience,
-                    department: department || null,
-                    year: targetAudience === 'students' && year ? year : null,
-                    section: targetAudience === 'students' && section ? section : null,
-                    staff_type: targetAudience === 'staff' && staffType ? staffType : null,
+                    target_audience: showOptionalScope ? targetAudience : null,
+                    department: showOptionalScope ? (department || null) : null,
+                    year: showOptionalScope && targetAudience === 'students' && year ? year : null,
+                    section: showOptionalScope && targetAudience === 'students' && section ? section : null,
+                    staff_type: showOptionalScope && targetAudience === 'staff' && staffType ? staffType : null,
                     created_by: user?.id,
                 })
                 .select()
@@ -166,84 +165,112 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                                 />
                             </div>
 
-                            {/* College Selector */}
                             <div>
-                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
-                                    <Building2 className="w-3 h-3" /> College
-                                </label>
-                                <select 
-                                    value={collegeId} 
-                                    onChange={(e) => setCollegeId(e.target.value)} 
-                                    title="College"
-                                    className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
-                                >
-                                    <option value="" disabled>Select College</option>
-                                    {colleges?.map(c => <option key={c.id} value={c.id}>{c.short_name}</option>)}
-                                </select>
+                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 font-heading">Description (optional)</label>
+                                <textarea
+                                    value={sessionDescription}
+                                    onChange={(e) => setSessionDescription(e.target.value)}
+                                    className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:border-primary/50 mt-1 transition-all resize-none"
+                                    rows={2}
+                                    placeholder="e.g. Mid-sem attendance for DS lecture"
+                                />
                             </div>
 
-                            {/* Target Audience Toggle */}
-                            <div>
-                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 font-heading mb-1 block">Attendance For</label>
-                                <div className="flex bg-muted/50 p-1 rounded-xl border border-border">
-                                    <button 
-                                        onClick={() => setTargetAudience('students')}
-                                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${targetAudience === 'students' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                                    >Students</button>
-                                    <button 
-                                        onClick={() => setTargetAudience('staff')}
-                                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${targetAudience === 'staff' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                                    >Staff / Faculty</button>
-                                </div>
-                            </div>
+                            <button
+                                onClick={() => setShowOptionalScope((v) => !v)}
+                                className="w-full flex items-center justify-between rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-sm"
+                                title="Toggle optional session filters"
+                            >
+                                <span className="font-medium">Session / Optional Filters</span>
+                                {showOptionalScope ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            </button>
 
-                            {/* Department */}
-                            <div>
-                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
-                                    <BookOpen className="w-3 h-3" /> Department / Branch
-                                </label>
-                                <select title="Department" value={department} onChange={(e) => setDepartment(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
-                                    {ENGINEERING_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                                </select>
-                            </div>
-
-                            {/* Conditional Selectors based on Target */}
-                            {targetAudience === 'students' ? (
-                                <div className="grid grid-cols-2 gap-3">
+                            {showOptionalScope && (
+                                <>
+                                    {/* College Selector */}
                                     <div>
                                         <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
-                                            <GraduationCap className="w-3 h-3" /> Year
+                                            <Building2 className="w-3 h-3" /> College (optional)
                                         </label>
-                                        <select title="Year" value={year} onChange={(e) => setYear(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
-                                            {STUDENT_YEARS.map(y => <option key={y.id} value={y.id}>{y.label}</option>)}
+                                        <select
+                                            value={collegeId}
+                                            onChange={(e) => setCollegeId(e.target.value)}
+                                            title="College"
+                                            className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
+                                        >
+                                            <option value="">Any / Not set</option>
+                                            {colleges?.map(c => <option key={c.id} value={c.id}>{c.short_name}</option>)}
                                         </select>
                                     </div>
+
+                                    {/* Target Audience Toggle */}
+                                    <div>
+                                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 font-heading mb-1 block">Attendance For</label>
+                                        <div className="flex bg-muted/50 p-1 rounded-xl border border-border">
+                                            <button
+                                                onClick={() => setTargetAudience('students')}
+                                                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${targetAudience === 'students' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                            >Students</button>
+                                            <button
+                                                onClick={() => setTargetAudience('staff')}
+                                                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${targetAudience === 'staff' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                            >Staff / Faculty</button>
+                                        </div>
+                                    </div>
+
+                                    {/* Department */}
                                     <div>
                                         <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
-                                            <Users className="w-3 h-3" /> Section
+                                            <BookOpen className="w-3 h-3" /> Department / Branch
                                         </label>
-                                        <select title="Section" value={section} onChange={(e) => setSection(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
-                                            {CLASS_SECTIONS.map(s => <option key={s} value={s}>Section {s}</option>)}
+                                        <select title="Department" value={department} onChange={(e) => setDepartment(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
+                                            <option value="">Any / Not set</option>
+                                            {ENGINEERING_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                                         </select>
                                     </div>
-                                </div>
-                            ) : (
-                                <div>
-                                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
-                                        <Briefcase className="w-3 h-3" /> Staff Category
-                                    </label>
-                                    <select title="Staff category" value={staffType} onChange={(e) => setStaffType(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
-                                        <optgroup label="Teaching Staff">
-                                            {STAFF_TYPES.filter(s => s.type === 'teaching').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                                        </optgroup>
-                                        <optgroup label="Non-Teaching Staff">
-                                            {STAFF_TYPES.filter(s => s.type === 'non-teaching').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                                        </optgroup>
-                                        <optgroup label="Admin">
-                                            {STAFF_TYPES.filter(s => s.type === 'admin').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                                        </optgroup>
-                                    </select>
-                                </div>
+
+                                    {/* Conditional Selectors based on Target */}
+                                    {targetAudience === 'students' ? (
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
+                                                    <GraduationCap className="w-3 h-3" /> Year
+                                                </label>
+                                                <select title="Year" value={year} onChange={(e) => setYear(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
+                                                    <option value="">Any</option>
+                                                    {STUDENT_YEARS.map(y => <option key={y.id} value={y.id}>{y.label}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
+                                                    <Users className="w-3 h-3" /> Section
+                                                </label>
+                                                <select title="Section" value={section} onChange={(e) => setSection(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
+                                                    <option value="">Any</option>
+                                                    {CLASS_SECTIONS.map(s => <option key={s} value={s}>Section {s}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1 font-heading">
+                                                <Briefcase className="w-3 h-3" /> Staff Category
+                                            </label>
+                                            <select title="Staff category" value={staffType} onChange={(e) => setStaffType(e.target.value)} className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1">
+                                                <option value="">Any</option>
+                                                <optgroup label="Teaching Staff">
+                                                    {STAFF_TYPES.filter(s => s.type === 'teaching').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                                </optgroup>
+                                                <optgroup label="Non-Teaching Staff">
+                                                    {STAFF_TYPES.filter(s => s.type === 'non-teaching').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                                </optgroup>
+                                                <optgroup label="Admin">
+                                                    {STAFF_TYPES.filter(s => s.type === 'admin').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                                </optgroup>
+                                            </select>
+                                        </div>
+                                    )}
+                                </>
                             )}
 
                             {/* Info Box */}
@@ -251,8 +278,9 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                                 <p className="mb-1 text-foreground font-medium">This QR will record attendance for:</p>
                                 <ul className="list-disc pl-4 space-y-0.5 mt-1 opacity-80">
                                     <li>Session: <strong>{sessionName || '...'}</strong></li>
-                                    <li>College: {colleges?.find(c => c.id === collegeId)?.short_name || '...'}</li>
-                                    <li>Target: {targetAudience === 'students' ? `${STUDENT_YEARS.find(y=>y.id===year)?.label} • ${department} • Sec ${section}` : `${STAFF_TYPES.find(s=>s.id===staffType)?.label} • ${department}`}</li>
+                                    {sessionDescription.trim() && <li>Description: {sessionDescription}</li>}
+                                    {showOptionalScope && <li>College: {colleges?.find(c => c.id === collegeId)?.short_name || 'Any'}</li>}
+                                    {showOptionalScope && <li>Target: {targetAudience === 'students' ? `${STUDENT_YEARS.find(y=>y.id===year)?.label || 'Any Year'} • ${department || 'Any Dept'} • Sec ${section || 'Any'}` : `${STAFF_TYPES.find(s=>s.id===staffType)?.label || 'Any Staff'} • ${department || 'Any Dept'}`}</li>}
                                     <li>Generated by: {profile?.full_name || 'You'}</li>
                                 </ul>
                             </div>
@@ -260,7 +288,7 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                             {/* Action */}
                             <button
                                 onClick={handleGenerate}
-                                disabled={!sessionName.trim() || !collegeId}
+                                disabled={!sessionName.trim()}
                                 className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-lg shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-50 mt-2"
                             >
                                 Generate QR Code
@@ -284,34 +312,39 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                                 <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rounded-bl-full pointer-events-none" />
                                 
                                 <h3 className="font-heading font-bold text-lg mb-1 pr-8">{sessionName}</h3>
+                                {sessionDescription.trim() && (
+                                    <p className="text-xs text-muted-foreground mb-2">{sessionDescription}</p>
+                                )}
                                 
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3 font-medium">
                                     <MapPin className="w-3.5 h-3.5 text-primary" />
-                                    {colleges?.find(c => c.id === collegeId)?.short_name}
+                                    {colleges?.find(c => c.id === collegeId)?.short_name || 'Any campus'}
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs bg-muted/30 p-3 rounded-xl">
                                     <div className="col-span-2 flex items-start gap-2">
                                         <BookOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                                        <span className="font-medium">{department}</span>
+                                        <span className="font-medium">{showOptionalScope ? (department || 'Any Department') : 'No audience filters'}</span>
                                     </div>
                                     
-                                    {targetAudience === 'students' ? (
+                                    {showOptionalScope && targetAudience === 'students' ? (
                                         <>
                                             <div className="flex items-center gap-2">
                                                 <GraduationCap className="w-3.5 h-3.5 text-muted-foreground" />
-                                                <span className="font-medium">{STUDENT_YEARS.find(y => y.id === year)?.label}</span>
+                                                <span className="font-medium">{STUDENT_YEARS.find(y => y.id === year)?.label || 'Any Year'}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                                                <span className="font-medium">Section {section}</span>
+                                                <span className="font-medium">Section {section || 'Any'}</span>
                                             </div>
                                         </>
-                                    ) : (
+                                    ) : showOptionalScope ? (
                                         <div className="col-span-2 flex items-center gap-2">
                                             <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
-                                            <span className="font-medium">{STAFF_TYPES.find(s => s.id === staffType)?.label}</span>
+                                            <span className="font-medium">{STAFF_TYPES.find(s => s.id === staffType)?.label || 'Any Staff'}</span>
                                         </div>
+                                    ) : (
+                                        <div className="col-span-2 text-muted-foreground">Attendees can scan without extra audience filters.</div>
                                     )}
                                     
                                     <div className="col-span-2 flex items-center gap-4 pt-2 mt-1 border-t border-border/50 text-muted-foreground">

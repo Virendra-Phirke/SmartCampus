@@ -139,6 +139,7 @@ const Attendance = () => {
             },
             session: {
                 name: session.session_name || 'Attendance Session',
+                description: session.description || '',
                 targetAudience: session.target_audience || 'students',
                 department: session.department || '',
                 ...(session.target_audience === 'staff'
@@ -220,7 +221,7 @@ const Attendance = () => {
                 const parsed = JSON.parse(data);
                 if (parsed.type === 'CAMPUSMATE_ATTENDANCE') {
                     const shouldMarkAttendance = window.confirm(
-                        `Confirm attendance?\n\nSession: ${parsed.session?.name || 'Attendance Session'}\nDepartment: ${parsed.session?.department || 'N/A'}\nCreated by: ${parsed.creator?.name || 'Unknown'}`
+                        `Confirm attendance?\n\nSession: ${parsed.session?.name || 'Attendance Session'}\nDescription: ${parsed.session?.description || 'No description'}`
                     );
 
                     if (!shouldMarkAttendance) {

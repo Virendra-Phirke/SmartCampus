@@ -197,7 +197,7 @@ export const useAttendance = () => {
     });
 
     const updateSessionMutation = useMutation({
-        mutationFn: async ({ sessionId, updates }: { sessionId: string; updates: Partial<{ session_name: string; college_id: string; target_audience: string; department: string; year: string; section: string; staff_type: string }> }) => {
+        mutationFn: async ({ sessionId, updates }: { sessionId: string; updates: Partial<{ session_name: string; description: string; college_id: string; target_audience: string; department: string; year: string; section: string; staff_type: string }> }) => {
             const { error } = await supabase
                 .from('attendance_sessions')
                 .update(updates)

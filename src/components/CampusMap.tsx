@@ -23,6 +23,7 @@ interface CampusMapProps {
   showHeatMap?: boolean;
   measureMode?: boolean;
   onMeasureDistance?: (d: number) => void;
+  recenterTrigger?: number;
 }
 
 const categoryIconEmojis: Record<string, string> = {
@@ -41,8 +42,21 @@ const STYLE_URLS: Record<string, string | maplibregl.StyleSpecification> = {
         tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
       },
+      labels: {
+        type: 'raster' as const,
+        tiles: [
+          'https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png',
+          'https://b.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png',
+          'https://c.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png',
+          'https://d.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png',
+        ],
+        tileSize: 256,
+      },
     },
-    layers: [{ id: 'satellite-layer', type: 'raster' as const, source: 'satellite' }],
+    layers: [
+      { id: 'satellite-layer', type: 'raster' as const, source: 'satellite' },
+      { id: 'satellite-labels-layer', type: 'raster' as const, source: 'labels' },
+    ],
   },
   outdoor: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
 };
@@ -55,7 +69,7 @@ const CampusMap = ({
   campus, selectedBuilding, onSelectBuilding, userLocation, userAccuracy,
   userHeading, navigatingTo, isAddingLocation = false, onCenterChange,
   activeFilter, isFollowing, activeLayer = 'dark',
-  showHeatMap = false, measureMode = false, onMeasureDistance,
+  showHeatMap = false, measureMode = false, onMeasureDistance, recenterTrigger = 0,
 }: CampusMapProps) => {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -281,6 +295,14 @@ const CampusMap = ({
       }
     }
   }, [userLocation, userAccuracy, userHeading, isFollowing, mapReady]);
+
+  // ── Explicit recenter (on GPS button click) ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !userLocation) return;
+    const [lat, lng] = userLocation;
+    map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 16), duration: 700 });
+  }, [recenterTrigger, mapReady, userLocation]);
 
   // ── Navigation route ──
   useEffect(() => {

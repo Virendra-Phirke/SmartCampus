@@ -61,6 +61,7 @@ const Index = () => {
   const [showHeatMap, setShowHeatMap] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
   const [measuredDistance, setMeasuredDistance] = useState<number | null>(null);
+  const [recenterTrigger, setRecenterTrigger] = useState(0);
   const [activeFilter, setActiveFilter] = useState('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
@@ -447,6 +448,7 @@ const Index = () => {
               measureMode={measureMode}
               onMeasureDistance={(d) => setMeasuredDistance(d)}
               activeFilter={activeFilter === 'all' ? null : activeFilter}
+              recenterTrigger={recenterTrigger}
             />
           </div>
 
@@ -565,7 +567,14 @@ const Index = () => {
           {!selectedBuilding && !navigatingTo && !isAddingLocation && (
             <div className="absolute bottom-24 right-3 z-[400] flex flex-col gap-2 items-center">
               <button
-                onClick={() => setIsFollowing(true)}
+                onClick={() => {
+                  if (!userLocation) {
+                    toast.info('Waiting for your GPS location...');
+                    return;
+                  }
+                  setIsFollowing(true);
+                  setRecenterTrigger((v) => v + 1);
+                }}
                 title="Center on my location"
                 className={`w-10 h-10 bg-card/90 backdrop-blur border border-border/50 rounded-full flex items-center justify-center shadow-lg ${isFollowing ? 'ring-2 ring-primary' : ''}`}
               >

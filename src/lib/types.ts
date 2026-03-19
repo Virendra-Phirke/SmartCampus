@@ -54,6 +54,7 @@ export interface AttendanceRecord {
 export interface AttendanceSession {
     id: string;
     session_name: string;
+    description?: string | null;
     college_id?: string | null;
     target_audience?: string | null;
     department?: string | null;

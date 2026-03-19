@@ -108,6 +108,7 @@ const QrSessionDetails = () => {
 
           <div className="mt-3 text-[11px] text-muted-foreground space-y-1">
             <p className="flex items-center gap-1"><School className="w-3.5 h-3.5" /> College: <span className="text-foreground font-medium">{collegeName}</span></p>
+            <p>Description: <span className="text-foreground font-medium">{session.description || '—'}</span></p>
             <p>Target: <span className="text-foreground font-medium capitalize">{session.target_audience || 'students'}</span></p>
             <p>Department: <span className="text-foreground font-medium">{session.department || '—'}</span></p>
           </div>
