@@ -560,7 +560,7 @@ const Index = () => {
           )}
         </>
       ) : (
-        <div className="flex-1 pt-[max(env(safe-area-inset-top),8px)] pb-20 overflow-hidden">
+        <div className="flex-1 pt-[max(env(safe-area-inset-top),8px)] overflow-y-auto">
           {activeTab === 'attendance' && <Attendance />}
           {activeTab === 'events' && <Events />}
           {activeTab === 'admin' && profile?.role === 'admin' && <AdminPanel />}
