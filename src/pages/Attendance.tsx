@@ -107,7 +107,11 @@ const getCurrentLocation = (maxWaitMs = 12000): Promise<{ lat: number; lng: numb
     });
 };
 
-const Attendance = () => {
+interface AttendanceProps {
+    userLocation?: [number, number] | null;
+}
+
+const Attendance = ({ userLocation }: AttendanceProps = {}) => {
     const navigate = useNavigate();
     const { confirm } = useAppDialog();
     const { user } = useUser();
@@ -169,12 +173,12 @@ const Attendance = () => {
             await updateSession({
                 sessionId,
                 updates: {
-                    college_id: editDetails.college_id || null,
+                    college_id: editDetails.college_id || undefined,
                     target_audience: editDetails.target_audience,
-                    department: editDetails.department || null,
-                    year: editDetails.target_audience === 'students' ? editDetails.year || null : null,
-                    section: editDetails.target_audience === 'students' ? editDetails.section || null : null,
-                    staff_type: editDetails.target_audience === 'staff' ? editDetails.staff_type || null : null,
+                    department: editDetails.department || undefined,
+                    year: editDetails.target_audience === 'students' ? editDetails.year || undefined : undefined,
+                    section: editDetails.target_audience === 'students' ? editDetails.section || undefined : undefined,
+                    staff_type: editDetails.target_audience === 'staff' ? editDetails.staff_type || undefined : undefined,
                 },
             });
             setEditingDetailsSessionId(null);
@@ -236,24 +240,25 @@ const Attendance = () => {
                 let location: { lat: number; lng: number; accuracy: number | null } | null = null;
                 
                 try {
-                    location = await new Promise(resolve => {
-                        toast.promise(
-                            getCurrentLocation(),
-                            {
-                                loading: 'Getting your precise location...',
-                                success: (loc) => {
-                                    resolve(loc);
-                                    return loc ? 'Location secured' : 'Using approximate location';
-                                },
-                                error: () => {
-                                    resolve(null);
-                                    return 'Location unavailable';
-                                }
-                            }
-                        );
+                    const locPromise = getCurrentLocation(3000); // 3 seconds timeout max
+                    toast.promise(locPromise, {
+                        loading: 'Getting your precise location...',
+                        success: (loc) => loc ? 'Location secured' : (userLocation ? 'Using cached location' : 'Location unavailable'),
+                        error: 'Location unavailable'
                     });
+                    
+                    const freshLoc = await locPromise;
+                    if (freshLoc) {
+                        location = freshLoc;
+                    } else if (userLocation) {
+                        location = { lat: userLocation[0], lng: userLocation[1], accuracy: null };
+                    }
                 } catch (e) {
-                    location = null;
+                    if (userLocation) {
+                        location = { lat: userLocation[0], lng: userLocation[1], accuracy: null };
+                    } else {
+                        location = null;
+                    }
                 }
 
                 const campusId = campusIdOverride || profile?.college_id || '';
@@ -474,7 +479,7 @@ const Attendance = () => {
                 scanInFlightRef.current = false;
             }
         },
-        [buildings, checkIn, profile, user, colleges, redirectToAttendanceTab, confirm]
+        [buildings, checkIn, profile, user, colleges, redirectToAttendanceTab, confirm, userLocation]
     );
 
     const filteredRecords = useMemo(() => {

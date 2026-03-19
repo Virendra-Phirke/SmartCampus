@@ -727,7 +727,7 @@ const Index = () => {
       ) : (
         <div className="flex-1 pt-[max(env(safe-area-inset-top),8px)] overflow-y-auto">
           <Suspense fallback={<SectionLoader />}>
-            {activeTab === 'attendance' && <Attendance />}
+            {activeTab === 'attendance' && <Attendance userLocation={userLocation} />}
             {activeTab === 'events' && <Events />}
             {activeTab === 'admin' && profile?.role === 'admin' && <AdminPanel />}
             {activeTab === 'profile' && <Profile />}

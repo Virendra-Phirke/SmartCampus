@@ -86,6 +86,7 @@ const CampusMap = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<Record<string, maplibregl.Marker>>({});
   const markerDistanceLabelRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const campusMarkerRef = useRef<maplibregl.Marker | null>(null);
   const userMarkerRef = useRef<maplibregl.Marker | null>(null);
   const destMarkerRef = useRef<maplibregl.Marker | null>(null);
   const prevLayerRef = useRef(activeLayer);
@@ -125,8 +126,8 @@ const CampusMap = ({
     // Navigation route
     if (!map.getSource('nav-route')) {
       map.addSource('nav-route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] }, properties: {} } });
-      map.addLayer({ id: 'nav-route-glow', type: 'line', source: 'nav-route', paint: { 'line-color': 'hsl(174, 62%, 47%)', 'line-opacity': 0.3, 'line-width': 10, 'line-blur': 8 } });
-      map.addLayer({ id: 'nav-route-line', type: 'line', source: 'nav-route', paint: { 'line-color': 'hsl(174, 62%, 47%)', 'line-opacity': 0.85, 'line-width': 4, 'line-dasharray': [2, 3] } });
+      map.addLayer({ id: 'nav-route-glow', type: 'line', source: 'nav-route', paint: { 'line-color': '#1d4ed8', 'line-opacity': 0.5, 'line-width': 8, 'line-blur': 2 } });
+      map.addLayer({ id: 'nav-route-line', type: 'line', source: 'nav-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#3b82f6', 'line-opacity': 0.9, 'line-width': 5 } });
     }
     // Measurement line
     if (!map.getSource('measure-line')) {
@@ -202,6 +203,72 @@ const CampusMap = ({
     map.setStyle(STYLE_URLS[activeLayer] || STYLE_URLS.dark);
   }, [activeLayer]);
 
+  // ── Draw College Campus Marker ──
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+
+    if (!campus) {
+      if (campusMarkerRef.current) {
+        campusMarkerRef.current.remove();
+        campusMarkerRef.current = null;
+      }
+      return;
+    }
+
+    let distLabel = '';
+    if (userLocation) {
+      const d = haversineMeters(userLocation[0], userLocation[1], campus.lat, campus.lng);
+      distLabel = fmtDist(d);
+    }
+
+    if (!campusMarkerRef.current) {
+      const el = document.createElement('div');
+      el.className = 'campus-main-marker';
+      el.style.zIndex = '50';
+      el.innerHTML = `
+        <div style="position: relative;">
+          <div style="background:hsl(210,100%,55%);width:32px;height:32px;border-radius:50%;border:3px solid white;box-shadow:0 0 15px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:16px;">
+            🎓
+          </div>
+          <div id="college-dist-label" class="marker-dist-label" style="display: ${distLabel ? 'block' : 'none'}; position: absolute; top: -25px; left: 50%; transform: translateX(-50%); white-space: nowrap;">
+            ${distLabel ? `🎓 ${distLabel}` : ''}
+          </div>
+        </div>
+      `;
+      campusMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([campus.lng, campus.lat])
+        .addTo(map);
+
+      // Label
+      const popup = new maplibregl.Popup({ offset: 15, closeButton: false, closeOnClick: false, className: 'campus-tooltip-popup' })
+        .setHTML(`<strong>${campus.short_name || campus.name}</strong>`);
+      el.addEventListener('mouseenter', () => popup.setLngLat([campus.lng, campus.lat]).addTo(map));
+      el.addEventListener('mouseleave', () => popup.remove());
+      
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        map.flyTo({ center: [campus.lng, campus.lat], zoom: 17, duration: 800 });
+        onSelectBuilding({
+          id: 'college-main-campus',
+          name: campus.name,
+          shortName: campus.short_name || campus.name,
+          category: 'admin',
+          lat: campus.lat,
+          lng: campus.lng,
+          description: campus.address || 'Main College Campus',
+        });
+      });
+    } else {
+      campusMarkerRef.current.setLngLat([campus.lng, campus.lat]);
+      const distEl = campusMarkerRef.current.getElement().querySelector('#college-dist-label') as HTMLDivElement;
+      if (distEl) {
+        distEl.textContent = distLabel ? `🎓 ${distLabel}` : '';
+        distEl.style.display = distLabel ? 'block' : 'none';
+      }
+    }
+  }, [mapReady, campus, userLocation, onSelectBuilding]);
+
   // ── Building markers ──
   useEffect(() => {
     const map = mapRef.current;
@@ -271,7 +338,7 @@ const CampusMap = ({
     if (selectedBuilding && map) {
       map.flyTo({ center: [selectedBuilding.lng, selectedBuilding.lat], zoom: 18, duration: 600 });
     }
-  }, [buildingsList, activeFilter, selectedBuilding, onSelectBuilding]);
+  }, [buildingsList, activeFilter, selectedBuilding, onSelectBuilding, userLocation]);
 
   // ── Update marker distance labels without recreating markers ──
   useEffect(() => {
@@ -370,13 +437,6 @@ const CampusMap = ({
 
     if (navigatingTo && userLocation) {
       const [uLat, uLng] = userLocation;
-      const coords: [number, number][] = [[uLng, uLat], [navigatingTo.lng, navigatingTo.lat]];
-
-      if (map.getSource('nav-route')) {
-        (map.getSource('nav-route') as maplibregl.GeoJSONSource).setData({
-          type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {},
-        });
-      }
 
       // Distance + ETA
       const dist = haversineMeters(uLat, uLng, navigatingTo.lat, navigatingTo.lng);
@@ -386,6 +446,34 @@ const CampusMap = ({
         arrivedRef.current = true;
         toast.success(`You've arrived at ${navigatingTo.shortName}! 🎉`, { description: `${fmtDist(dist)} away · ${estimateSteps(dist)} steps` });
       }
+
+      // Initial straight line fallback while loading
+      const initCoords: [number, number][] = [[uLng, uLat], [navigatingTo.lng, navigatingTo.lat]];
+      if (map.getSource('nav-route')) {
+        (map.getSource('nav-route') as maplibregl.GeoJSONSource).setData({
+          type: 'Feature', geometry: { type: 'LineString', coordinates: initCoords }, properties: {},
+        });
+      }
+
+      // Fetch proper road route via OSRM (using driving profile for proper road networks like Google Maps)
+      fetch(`https://router.project-osrm.org/route/v1/driving/${uLng},${uLat};${navigatingTo.lng},${navigatingTo.lat}?overview=full&geometries=geojson`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.routes && data.routes.length > 0) {
+            const coords = data.routes[0].geometry.coordinates;
+             if (map.getSource('nav-route')) {
+              (map.getSource('nav-route') as maplibregl.GeoJSONSource).setData({
+                type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {},
+              });
+            }
+            
+            // Auto fit bounds so the new path is nicely visible
+            const bounds = new maplibregl.LngLatBounds();
+            coords.forEach((c: [number, number]) => bounds.extend(c));
+            map.fitBounds(bounds, { padding: 90, maxZoom: 18, duration: 1500 });
+          }
+        })
+        .catch(() => {});
 
       // Destination marker
       if (!destMarkerRef.current) {
@@ -476,18 +564,22 @@ const CampusMap = ({
   // ── Auto-zoom to campus buildings on mount ──
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || buildingsList.length === 0) return;
+    if (!map || !mapReady || !campus) return;
 
     const bounds = new maplibregl.LngLatBounds();
+    // Always ensure the main campus coordinate is in the view
+    bounds.extend([campus.lng, campus.lat]);
+    
+    // Add all buildings if they exist
     buildingsList.forEach(b => bounds.extend([b.lng, b.lat]));
 
     setTimeout(() => {
       if (!mapRef.current) return;
-      try { mapRef.current.fitBounds(bounds, { padding: 50, maxZoom: 17, pitch: 50, duration: 1200 }); } catch { /* */ }
+      try { 
+        mapRef.current.fitBounds(bounds, { padding: 60, maxZoom: 17, pitch: 45, duration: 1500 }); 
+      } catch { /* */ }
     }, 500);
-    // Only run once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady]);
+  }, [mapReady, campus, buildingsList.length]);
 
   return (
     <div className="relative w-full h-full">
