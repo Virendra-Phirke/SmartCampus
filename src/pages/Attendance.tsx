@@ -18,16 +18,76 @@ type HistoryFilter = 'today' | 'week' | 'all';
 
 interface ScannedPerson {
     name: string;
+    username?: string;
+    full_name?: string;
     email: string;
     mobile: string;
+    mobile_no?: string;
+    address?: string;
     college: string;
     branch: string;
+    course_or_department?: string;
     year: string;
     section: string;
     rollNo: string;
+    roll_no?: string;
     role: string;
     timestamp: string;
+    location_lat?: number | null;
+    location_lng?: number | null;
+    location_accuracy?: number | null;
+    campus_lat?: number | null;
+    campus_lng?: number | null;
+    distance_from_campus_km?: number | null;
+    distanceFromCampusKm?: number | null;
 }
+
+const toRadians = (value: number) => (value * Math.PI) / 180;
+const calculateDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const earthRadiusKm = 6371;
+    const dLat = toRadians(lat2 - lat1);
+    const dLng = toRadians(lng2 - lng1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return earthRadiusKm * c;
+};
+
+const getCurrentLocation = (maxWaitMs = 2500): Promise<{ lat: number; lng: number; accuracy: number | null } | null> => {
+    return new Promise((resolve) => {
+        if (!('geolocation' in navigator)) {
+            resolve(null);
+            return;
+        }
+
+        let finished = false;
+        const done = (value: { lat: number; lng: number; accuracy: number | null } | null) => {
+            if (finished) return;
+            finished = true;
+            resolve(value);
+        };
+
+        const fallbackTimer = window.setTimeout(() => done(null), maxWaitMs);
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                window.clearTimeout(fallbackTimer);
+                done({
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy ?? null,
+                });
+            },
+            () => {
+                window.clearTimeout(fallbackTimer);
+                done(null);
+            },
+            { enableHighAccuracy: true, timeout: maxWaitMs, maximumAge: 0 }
+        );
+    });
+};
 
 const Attendance = () => {
     const navigate = useNavigate();
@@ -60,6 +120,10 @@ const Attendance = () => {
     const { records, isLoading, creatorSessions, isCreatorLoading, todayCount, weekCount, checkIn, deleteSession, updateSession } = useAttendance();
     const { data: buildings } = useBuildings();
     const { data: colleges } = useColleges();
+
+    const redirectToAttendanceTab = useCallback(() => {
+        navigate('/?tab=attendance', { replace: true });
+    }, [navigate]);
 
     const buildSessionQrPayload = useCallback((session: any) => {
         return JSON.stringify({
@@ -167,17 +231,48 @@ const Attendance = () => {
                     setLastScan(parsed);
                     const buildingId = buildings?.[0]?.id || 'general-checkin';
                     try {
+                        const location = await getCurrentLocation();
+                        const campusId = parsed?.creator?.college || parsed?.session?.college || profile?.college_id || '';
+                        const campus = colleges?.find((c) => c.id === campusId) || null;
+
+                        let distanceFromCampusKm: number | null = null;
+                        if (location && campus) {
+                            distanceFromCampusKm = Number(
+                                calculateDistanceKm(location.lat, location.lng, campus.lat, campus.lng).toFixed(3)
+                            );
+                        }
+
+                        const fullName = profile?.full_name || user?.fullName || 'Unknown';
+                        const role = profile?.role || 'student';
+                        const courseOrDepartment = role === 'student'
+                            ? (profile?.course_id || profile?.department_id || '')
+                            : (profile?.department_id || profile?.course_id || '');
+
                         const guestMeta = {
-                            name: profile?.full_name || user?.fullName || 'Unknown',
+                            username: user?.username || profile?.username || '',
+                            full_name: fullName,
+                            name: fullName,
                             email: user?.primaryEmailAddress?.emailAddress || '',
+                            mobile_no: profile?.mobile_no || '',
                             mobile: profile?.mobile_no || '',
-                            college: profile?.college_id || '',
-                            branch: profile?.course_id || profile?.department_id || '',
-                            year: profile?.year || '', 
-                            section: profile?.section || '',
+                            address: profile?.address || '',
+                            college: campusId,
+                            course_or_department: courseOrDepartment,
+                            branch: courseOrDepartment,
+                            year: role === 'student' ? (profile?.year || '') : '',
+                            section: role === 'student' ? (profile?.section || '') : '',
+                            roll_no: profile?.role_id || '',
                             rollNo: profile?.role_id || '',
-                            role: profile?.role || 'student',
+                            role,
+                            staff_type: role === 'faculty' || role === 'staff' ? (profile?.staff_type || '') : '',
                             timestamp: new Date().toISOString(),
+                            location_lat: location?.lat ?? null,
+                            location_lng: location?.lng ?? null,
+                            location_accuracy: location?.accuracy ?? null,
+                            campus_lat: campus?.lat ?? null,
+                            campus_lng: campus?.lng ?? null,
+                            distance_from_campus_km: distanceFromCampusKm,
+                            distanceFromCampusKm,
                         };
                         
                         await checkIn({ 
@@ -189,6 +284,7 @@ const Attendance = () => {
                         
                         setScannedPeople(prev => [guestMeta as unknown as ScannedPerson, ...prev]);
                         toast.success('✅ Attendance Marked!', { description: `${parsed.session.name}` });
+                        redirectToAttendanceTab();
                     } catch (e: any) {
                         toast.error(e?.message || 'Check-in failed');
                     }
@@ -202,9 +298,10 @@ const Attendance = () => {
             try {
                 await checkIn({ buildingId: building.id, method: 'qr' });
                 toast.success('Checked In!', { description: building.name });
+                redirectToAttendanceTab();
             } catch (e: any) { toast.error(e?.message || 'Check-in Failed'); }
         },
-        [buildings, checkIn, profile, user]
+        [buildings, checkIn, profile, user, colleges, redirectToAttendanceTab]
     );
 
     const filteredRecords = records.filter(r => {
@@ -517,9 +614,12 @@ const Attendance = () => {
                                                             </div>
                                                             <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] pl-9">
                                                                 <span className="flex items-center gap-1 text-muted-foreground truncate"><Mail className="w-2.5 h-2.5 shrink-0" /> {s.email || '—'}</span>
-                                                                <span className="flex items-center gap-1 text-muted-foreground truncate"><Phone className="w-2.5 h-2.5 shrink-0" /> {s.mobile || '—'}</span>
-                                                                <span className="flex items-center gap-1 text-muted-foreground truncate"><BookOpen className="w-2.5 h-2.5 shrink-0" /> {s.branch || '—'}</span>
-                                                                <span className="flex items-center gap-1 text-muted-foreground truncate"><Hash className="w-2.5 h-2.5 shrink-0" /> {s.rollNo || '—'}</span>
+                                                                <span className="flex items-center gap-1 text-muted-foreground truncate"><Phone className="w-2.5 h-2.5 shrink-0" /> {s.mobile_no || s.mobile || '—'}</span>
+                                                                <span className="flex items-center gap-1 text-muted-foreground truncate"><BookOpen className="w-2.5 h-2.5 shrink-0" /> {s.course_or_department || s.branch || '—'}</span>
+                                                                <span className="flex items-center gap-1 text-muted-foreground truncate"><Hash className="w-2.5 h-2.5 shrink-0" /> {s.roll_no || s.rollNo || '—'}</span>
+                                                                <span className="col-span-2 text-muted-foreground truncate">Year/Section: {s.year || '—'} / {s.section || '—'}</span>
+                                                                <span className="col-span-2 text-muted-foreground truncate">Address: {s.address || '—'}</span>
+                                                                <span className="col-span-2 text-muted-foreground truncate">Distance from campus: {s.distance_from_campus_km ?? s.distanceFromCampusKm ?? '—'} km</span>
                                                             </div>
                                                         </div>
                                                     );

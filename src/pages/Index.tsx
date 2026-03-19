@@ -18,6 +18,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useColleges } from '@/hooks/useColleges';
 import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
 import { toast } from 'sonner';
+import { useLocation } from 'react-router-dom';
 
 const LAYER_OPTIONS = [
   { key: 'dark', label: 'Dark', emoji: '🌑' },
@@ -41,6 +42,7 @@ const ROLE_OPTIONS = [
 ];
 
 const Index = () => {
+  const location = useLocation();
   const { user } = useUser();
   const { profile, isLoading: profileLoading, upsertProfile } = useProfile();
   const { data: colleges } = useColleges();
@@ -85,6 +87,15 @@ const Index = () => {
   const [showBuildingForm, setShowBuildingForm] = useState(false);
   const [editingBuilding, setEditingBuilding] = useState<CampusBuilding | null>(null);
   const mapCenterRef = useRef<[number, number]>([0, 0]);
+
+  // ── Support deep link tab selection: /?tab=attendance ──
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (tab && ['map', 'attendance', 'events', 'profile', 'admin'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [location.search]);
 
   // ── Auto-load college from profile (unless user manually switched) ──
   useEffect(() => {

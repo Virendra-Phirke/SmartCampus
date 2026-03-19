@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle, Clock3, Mail, Phone, BookOpen, Hash, School, User, Users } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock3, Mail, Phone, BookOpen, Hash, School, User, Users, MapPin, Home } from 'lucide-react';
 import { format } from 'date-fns';
 import { useUser } from '@clerk/clerk-react';
 import { supabase } from '@/lib/supabase';
@@ -127,7 +127,7 @@ const QrSessionDetails = () => {
                 <div key={record.id} className="bg-card border border-border rounded-2xl p-3 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">{m.name || 'Unknown User'}</p>
+                      <p className="text-sm font-semibold truncate">{m.full_name || m.name || 'Unknown User'}</p>
                       <p className="text-[10px] text-muted-foreground capitalize">{m.role || 'member'}</p>
                     </div>
                     <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 font-semibold flex items-center gap-1 shrink-0">
@@ -136,11 +136,20 @@ const QrSessionDetails = () => {
                   </div>
 
                   <div className="mt-2 grid grid-cols-1 gap-1 text-[11px] text-muted-foreground">
+                    <p className="truncate">Username: <span className="text-foreground">{m.username || '—'}</span></p>
                     <p className="flex items-center gap-1 truncate"><Mail className="w-3 h-3 shrink-0" /> {m.email || '—'}</p>
-                    <p className="flex items-center gap-1 truncate"><Phone className="w-3 h-3 shrink-0" /> {m.mobile || '—'}</p>
-                    <p className="flex items-center gap-1 truncate"><BookOpen className="w-3 h-3 shrink-0" /> {m.branch || m.department || '—'}</p>
-                    <p className="flex items-center gap-1 truncate"><Hash className="w-3 h-3 shrink-0" /> {m.rollNo || '—'}</p>
-                    <p className="flex items-center gap-1 truncate"><Clock3 className="w-3 h-3 shrink-0" /> {format(new Date(record.checked_in_at), 'MMM d, yyyy • h:mm a')}</p>
+                    <p className="flex items-center gap-1 truncate"><Phone className="w-3 h-3 shrink-0" /> {m.mobile_no || m.mobile || '—'}</p>
+                    <p className="truncate">Full Name: <span className="text-foreground">{m.full_name || m.name || '—'}</span></p>
+                    <p className="truncate">Role: <span className="text-foreground capitalize">{m.role || '—'}</span></p>
+                    <p className="flex items-center gap-1 truncate"><BookOpen className="w-3 h-3 shrink-0" /> {m.course_or_department || m.branch || m.department || '—'}</p>
+                    <p className="truncate">Year: <span className="text-foreground">{m.year || '—'}</span></p>
+                    <p className="truncate">Section: <span className="text-foreground">{m.section || '—'}</span></p>
+                    <p className="flex items-center gap-1 truncate"><Hash className="w-3 h-3 shrink-0" /> {m.roll_no || m.rollNo || '—'}</p>
+                    <p className="flex items-center gap-1 truncate"><Home className="w-3 h-3 shrink-0" /> {m.address || '—'}</p>
+                    <p className="flex items-center gap-1 truncate"><MapPin className="w-3 h-3 shrink-0" /> User Coords: {m.location_lat ?? '—'}, {m.location_lng ?? '—'}</p>
+                    <p className="truncate">Campus Coords: <span className="text-foreground">{m.campus_lat ?? '—'}, {m.campus_lng ?? '—'}</span></p>
+                    <p className="truncate">Distance from campus: <span className="text-foreground">{m.distance_from_campus_km ?? m.distanceFromCampusKm ?? '—'} km</span></p>
+                    <p className="flex items-center gap-1 truncate"><Clock3 className="w-3 h-3 shrink-0" /> {m.timestamp ? format(new Date(m.timestamp), 'MMM d, yyyy • h:mm a') : format(new Date(record.checked_in_at), 'MMM d, yyyy • h:mm a')}</p>
                     <p className="flex items-center gap-1 truncate"><User className="w-3 h-3 shrink-0" /> User ID: {record.user_id || '—'}</p>
                   </div>
                 </div>

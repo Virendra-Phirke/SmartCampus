@@ -60,18 +60,55 @@ export const useAttendance = () => {
                 }
             }
 
-            const { data, error } = await supabase
-                .from('attendance_records')
-                .insert({
-                    user_id: userId,
-                    building_id: buildingId,
-                    method,
-                    session_id: sessionId,
-                    metadata: metadata,
-                    checked_in_at: new Date().toISOString(),
-                })
-                .select()
-                .single();
+            const insertPayload: Record<string, unknown> = {
+                user_id: userId,
+                building_id: buildingId,
+                method,
+                session_id: sessionId,
+                metadata: metadata,
+                checked_in_at: new Date().toISOString(),
+                username: metadata?.username || null,
+                full_name: metadata?.full_name || metadata?.name || null,
+                email: metadata?.email || null,
+                role: metadata?.role || null,
+                course_or_department: metadata?.course_or_department || metadata?.branch || null,
+                year: metadata?.year || null,
+                section: metadata?.section || null,
+                roll_no: metadata?.roll_no || metadata?.rollNo || null,
+                mobile_no: metadata?.mobile_no || metadata?.mobile || null,
+                address: metadata?.address || null,
+                scan_timestamp: metadata?.timestamp || null,
+                location_lat: metadata?.location_lat ?? null,
+                location_lng: metadata?.location_lng ?? null,
+                location_accuracy: metadata?.location_accuracy ?? null,
+                campus_lat: metadata?.campus_lat ?? null,
+                campus_lng: metadata?.campus_lng ?? null,
+                distance_from_campus_km: metadata?.distance_from_campus_km ?? metadata?.distanceFromCampusKm ?? null,
+            };
+
+            const currentPayload = { ...insertPayload };
+            let data: AttendanceRecord | null = null;
+            let error: { code?: string; message?: string } | null = null;
+
+            for (let i = 0; i < 10; i++) {
+                const result = await supabase
+                    .from('attendance_records')
+                    .insert(currentPayload)
+                    .select()
+                    .single();
+
+                data = (result.data as AttendanceRecord | null) || null;
+                error = (result.error as { code?: string; message?: string } | null) || null;
+
+                if (!error) break;
+                if (error.code !== 'PGRST204') break;
+
+                const msg = String(error.message || '');
+                const missingColumn = msg.match(/'([^']+)' column/)?.[1];
+
+                if (!missingColumn || !(missingColumn in currentPayload)) break;
+                delete currentPayload[missingColumn];
+            }
 
             if (error) throw error;
             return data;
