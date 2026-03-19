@@ -10,6 +10,7 @@ interface QRScannerProps {
 
 const QRScanner = ({ onScan, onClose }: QRScannerProps) => {
     const scannerRef = useRef<Html5Qrcode | null>(null);
+    const scanHandledRef = useRef(false);
     const [error, setError] = useState<string | null>(null);
     const [isStarting, setIsStarting] = useState(true);
 
@@ -27,6 +28,8 @@ const QRScanner = ({ onScan, onClose }: QRScannerProps) => {
                         aspectRatio: 1,
                     },
                     (decodedText) => {
+                        if (scanHandledRef.current) return;
+                        scanHandledRef.current = true;
                         onScan(decodedText);
                         scanner.stop().catch(() => { });
                     },
