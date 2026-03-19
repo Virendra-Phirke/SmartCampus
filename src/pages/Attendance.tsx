@@ -57,9 +57,10 @@ const calculateDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: num
     return earthRadiusKm * c;
 };
 
-const getCurrentLocation = (maxWaitMs = 15000): Promise<{ lat: number; lng: number; accuracy: number | null } | null> => {
+const getCurrentLocation = (maxWaitMs = 12000): Promise<{ lat: number; lng: number; accuracy: number | null } | null> => {
     return new Promise((resolve) => {
         if (!('geolocation' in navigator)) {
+            console.warn('Geolocation not supported in this browser.');
             resolve(null);
             return;
         }
@@ -71,7 +72,10 @@ const getCurrentLocation = (maxWaitMs = 15000): Promise<{ lat: number; lng: numb
             resolve(value);
         };
 
-        const fallbackTimer = window.setTimeout(() => done(null), maxWaitMs);
+        const fallbackTimer = window.setTimeout(() => {
+            console.warn('Geolocation timed out after', maxWaitMs, 'ms');
+            done(null);
+        }, maxWaitMs);
 
         const onSuccess = (pos: GeolocationPosition) => {
             window.clearTimeout(fallbackTimer);
@@ -82,20 +86,23 @@ const getCurrentLocation = (maxWaitMs = 15000): Promise<{ lat: number; lng: numb
             });
         };
 
+        // Attempt to get immediately from cache or with lower accuracy first if high accuracy fails
         navigator.geolocation.getCurrentPosition(
             onSuccess,
-            () => {
+            (error1) => {
+                console.warn('High accuracy GPS failed:', error1.message);
                 // Android fallback: network-based location
                 navigator.geolocation.getCurrentPosition(
                     onSuccess,
-                    () => {
+                    (error2) => {
+                        console.warn('Low accuracy GPS failed:', error2.message);
                         window.clearTimeout(fallbackTimer);
                         done(null);
                     },
-                    { enableHighAccuracy: false, timeout: maxWaitMs / 2, maximumAge: 15000 }
+                    { enableHighAccuracy: false, timeout: maxWaitMs, maximumAge: 120000 }
                 );
             },
-            { enableHighAccuracy: true, timeout: maxWaitMs, maximumAge: 5000 }
+            { enableHighAccuracy: true, timeout: maxWaitMs / 2, maximumAge: 30000 }
         );
     });
 };
@@ -226,7 +233,29 @@ const Attendance = () => {
             };
 
             const buildGuestMeta = async (campusIdOverride?: string) => {
-                const location = await getCurrentLocation();
+                let location: { lat: number; lng: number; accuracy: number | null } | null = null;
+                
+                try {
+                    location = await new Promise(resolve => {
+                        toast.promise(
+                            getCurrentLocation(),
+                            {
+                                loading: 'Getting your precise location...',
+                                success: (loc) => {
+                                    resolve(loc);
+                                    return loc ? 'Location secured' : 'Using approximate location';
+                                },
+                                error: () => {
+                                    resolve(null);
+                                    return 'Location unavailable';
+                                }
+                            }
+                        );
+                    });
+                } catch (e) {
+                    location = null;
+                }
+
                 const campusId = campusIdOverride || profile?.college_id || '';
                 const campus = colleges?.find((c) => c.id === campusId) || null;
 
