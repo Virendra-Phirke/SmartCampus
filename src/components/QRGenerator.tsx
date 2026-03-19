@@ -42,7 +42,9 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const qrRef = useRef<HTMLDivElement>(null);
 
-    const qrPayload = sessionId ? `CMA:${sessionId}` : 'CMA:PENDING';
+    const qrPayload = sessionId
+        ? `CMA|${sessionId}|${encodeURIComponent(sessionName || 'Attendance Session')}|${encodeURIComponent(sessionDescription || '')}`
+        : 'CMA:PENDING';
 
     const handleGenerate = async () => {
         if (!sessionName.trim()) {

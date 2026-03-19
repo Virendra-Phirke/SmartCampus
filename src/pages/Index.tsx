@@ -1,24 +1,24 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import CampusMap from '@/components/CampusMap';
-import CampusSelectionMap from '@/components/CampusSelectionMap';
 import SearchBar from '@/components/SearchBar';
 import BottomSheet from '@/components/BottomSheet';
 import BottomNav from '@/components/BottomNav';
-import QuickAccess from '@/components/QuickAccess';
-import Attendance from '@/pages/Attendance';
-import Events from '@/pages/Events';
-import Profile from '@/pages/Profile';
-import AdminPanel from '@/pages/AdminPanel';
 import type { CampusBuilding } from '@/data/campusData';
 import type { College } from '@/lib/types';
 import { MapPin, LogOut, Plus, X, Check, Crosshair, Ruler, Flame, Navigation2, ChevronDown, Layers } from 'lucide-react';
-import CampusWizard from '@/components/CampusWizard';
 import { useProfile } from '@/hooks/useProfile';
 import { useColleges } from '@/hooks/useColleges';
 import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
+
+const CampusMap = lazy(() => import('@/components/CampusMap'));
+const CampusSelectionMap = lazy(() => import('@/components/CampusSelectionMap'));
+const CampusWizard = lazy(() => import('@/components/CampusWizard'));
+const Attendance = lazy(() => import('@/pages/Attendance'));
+const Events = lazy(() => import('@/pages/Events'));
+const Profile = lazy(() => import('@/pages/Profile'));
+const AdminPanel = lazy(() => import('@/pages/AdminPanel'));
 
 const LAYER_OPTIONS = [
   { key: 'dark', label: 'Dark', emoji: '🌑' },
@@ -40,6 +40,12 @@ const ROLE_OPTIONS = [
   { value: 'student', label: '🎓 Student', desc: 'Attend classes, scan QR' },
   { value: 'faculty', label: '👨‍🏫 Teacher', desc: 'Create attendance, manage classes' },
 ];
+
+const SectionLoader = () => (
+  <div className="w-full h-full flex items-center justify-center">
+    <div className="h-8 w-8 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+  </div>
+);
 
 const Index = () => {
   const location = useLocation();
@@ -124,13 +130,8 @@ const Index = () => {
       return;
     }
 
-    if (!profile?.full_name) {
-      setOnboardingStep('profile');
-      return;
-    }
-
     setOnboardingStep('none');
-  }, [profileLoading, profile?.role, profile?.college_id, profile?.full_name]);
+  }, [profileLoading, profile?.role, profile?.college_id]);
 
   useEffect(() => {
     if (profile?.role === 'student' || profile?.role === 'faculty') {
@@ -239,12 +240,12 @@ const Index = () => {
     try {
       await upsertProfile.mutateAsync({ college_id: college.id });
       if (onboardingStep === 'college') {
-        setOnboardingStep(profile?.full_name ? 'none' : 'profile');
+        setOnboardingStep('profile');
       }
     } catch {
       toast.error('Failed to save selected college');
     }
-  }, [upsertProfile, onboardingStep, profile?.full_name]);
+  }, [upsertProfile, onboardingStep]);
 
   // ── Switch campus handler ──
   const handleSwitchCampus = () => {
@@ -265,13 +266,9 @@ const Index = () => {
 
   // ── Onboarding: save full profile ──
   const handleProfileSave = async () => {
-    if (!onboardForm.full_name.trim()) {
-      toast.error('Please enter your name');
-      return;
-    }
     try {
       await upsertProfile.mutateAsync({
-        full_name: onboardForm.full_name,
+        full_name: user?.fullName || onboardForm.full_name || profile?.full_name || null,
         mobile_no: onboardForm.mobile_no,
         address: onboardForm.address,
         role_id: onboardForm.role_id,
@@ -294,6 +291,20 @@ const Index = () => {
     setActiveTab('map');
   };
 
+  const handleMapCenterChange = useCallback((center: [number, number]) => {
+    mapCenterRef.current = center;
+  }, []);
+
+  const handleMeasureDistance = useCallback((distance: number) => {
+    setMeasuredDistance(distance);
+  }, []);
+
+  const handleEditBuilding = useCallback((building: CampusBuilding) => {
+    setEditingBuilding(building);
+    setShowBuildingForm(true);
+    setSelectedBuilding(null);
+  }, []);
+
   const handleNavigate = useCallback((building: CampusBuilding) => {
     setNavigatingTo(building);
     setSelectedBuilding(null);
@@ -312,7 +323,9 @@ const Index = () => {
   if (onboardingStep === 'college') {
     return (
       <div className="h-full w-full relative">
-        <CampusSelectionMap onSelectCampus={handleSelectCampus} userLocation={userLocation} />
+        <Suspense fallback={<SectionLoader />}>
+          <CampusSelectionMap onSelectCampus={handleSelectCampus} userLocation={userLocation} />
+        </Suspense>
         <div className="absolute top-[max(env(safe-area-inset-top),10px)] left-1/2 -translate-x-1/2 z-[500]">
           <div className="bg-card/90 backdrop-blur border border-border/50 rounded-full px-3 py-1.5 text-[11px] font-semibold">
             Select your college to continue
@@ -325,7 +338,9 @@ const Index = () => {
   if (!selectedCampus) {
     return (
       <div className="h-full w-full">
-        <CampusSelectionMap onSelectCampus={handleSelectCampus} userLocation={userLocation} />
+        <Suspense fallback={<SectionLoader />}>
+          <CampusSelectionMap onSelectCampus={handleSelectCampus} userLocation={userLocation} />
+        </Suspense>
       </div>
     );
   }
@@ -380,26 +395,7 @@ const Index = () => {
             <p className="text-xs text-muted-foreground mt-1">This info helps with attendance & campus services</p>
           </div>
           <div className="space-y-3.5">
-            <div>
-              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Full Name *</label>
-              <input
-                value={onboardForm.full_name}
-                onChange={(e) => setOnboardForm({ ...onboardForm, full_name: e.target.value })}
-                className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 mt-1"
-                placeholder="Your full name"
-              />
-            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Mobile</label>
-                <input
-                  value={onboardForm.mobile_no}
-                  onChange={(e) => setOnboardForm({ ...onboardForm, mobile_no: e.target.value })}
-                  type="tel"
-                  className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
-                  placeholder="Phone number"
-                />
-              </div>
               <div>
                 <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">
                   {selectedRole === 'student' ? 'Roll No.' : 'Employee ID'}
@@ -411,15 +407,16 @@ const Index = () => {
                   placeholder={selectedRole === 'student' ? 'Roll number' : 'Emp ID'}
                 />
               </div>
-            </div>
-            <div>
-              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Address</label>
-              <input
-                value={onboardForm.address}
-                onChange={(e) => setOnboardForm({ ...onboardForm, address: e.target.value })}
-                className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
-                placeholder="Your address"
-              />
+              <div>
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Mobile</label>
+                <input
+                  value={onboardForm.mobile_no}
+                  onChange={(e) => setOnboardForm({ ...onboardForm, mobile_no: e.target.value })}
+                  type="tel"
+                  className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
+                  placeholder="Phone number"
+                />
+              </div>
             </div>
             <div>
               <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">
@@ -492,11 +489,20 @@ const Index = () => {
               </div>
             )}
 
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Address</label>
+              <input
+                value={onboardForm.address}
+                onChange={(e) => setOnboardForm({ ...onboardForm, address: e.target.value })}
+                className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
+                placeholder="Your address"
+              />
+            </div>
+
           </div>
           <button
             onClick={handleProfileSave}
-            disabled={!onboardForm.full_name.trim()}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-lg active:scale-[0.98] mt-6 disabled:opacity-50"
+            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-lg active:scale-[0.98] mt-6"
           >
             Save & Enter Campus 🚀
           </button>
@@ -514,24 +520,26 @@ const Index = () => {
         <>
           {/* Map */}
           <div className="absolute inset-0 z-0">
-            <CampusMap
-              campus={selectedCampus}
-              selectedBuilding={selectedBuilding}
-              onSelectBuilding={setSelectedBuilding}
-              userLocation={userLocation}
-              userAccuracy={userAccuracy}
-              userHeading={userHeading}
-              navigatingTo={navigatingTo}
-              isAddingLocation={isAddingLocation}
-              onCenterChange={(center) => { mapCenterRef.current = center; }}
-              activeLayer={activeLayer}
-              isFollowing={isFollowing}
-              showHeatMap={showHeatMap}
-              measureMode={measureMode}
-              onMeasureDistance={(d) => setMeasuredDistance(d)}
-              activeFilter={activeFilter === 'all' ? null : activeFilter}
-              recenterTrigger={recenterTrigger}
-            />
+            <Suspense fallback={<SectionLoader />}>
+              <CampusMap
+                campus={selectedCampus}
+                selectedBuilding={selectedBuilding}
+                onSelectBuilding={setSelectedBuilding}
+                userLocation={userLocation}
+                userAccuracy={userAccuracy}
+                userHeading={userHeading}
+                navigatingTo={navigatingTo}
+                isAddingLocation={isAddingLocation}
+                onCenterChange={handleMapCenterChange}
+                activeLayer={activeLayer}
+                isFollowing={isFollowing}
+                showHeatMap={showHeatMap}
+                measureMode={measureMode}
+                onMeasureDistance={handleMeasureDistance}
+                activeFilter={activeFilter === 'all' ? null : activeFilter}
+                recenterTrigger={recenterTrigger}
+              />
+            </Suspense>
           </div>
 
           {/* ─── Top Bar ─── */}
@@ -690,22 +698,26 @@ const Index = () => {
             onClose={() => setSelectedBuilding(null)}
             onNavigate={handleNavigate}
             userLocation={userLocation}
-            onEdit={(b) => { setEditingBuilding(b); setShowBuildingForm(true); setSelectedBuilding(null); }}
+            onEdit={handleEditBuilding}
           />
 
           {showBuildingForm && (
-            <CampusWizard
-              initialLocation={{ lat: mapCenterRef.current[0] || selectedCampus.lat, lng: mapCenterRef.current[1] || selectedCampus.lng }}
-              onClose={() => { cancelAddLocation(); setEditingBuilding(null); }}
-            />
+            <Suspense fallback={<SectionLoader />}>
+              <CampusWizard
+                initialLocation={{ lat: mapCenterRef.current[0] || selectedCampus.lat, lng: mapCenterRef.current[1] || selectedCampus.lng }}
+                onClose={() => { cancelAddLocation(); setEditingBuilding(null); }}
+              />
+            </Suspense>
           )}
         </>
       ) : (
         <div className="flex-1 pt-[max(env(safe-area-inset-top),8px)] overflow-y-auto">
-          {activeTab === 'attendance' && <Attendance />}
-          {activeTab === 'events' && <Events />}
-          {activeTab === 'admin' && profile?.role === 'admin' && <AdminPanel />}
-          {activeTab === 'profile' && <Profile />}
+          <Suspense fallback={<SectionLoader />}>
+            {activeTab === 'attendance' && <Attendance />}
+            {activeTab === 'events' && <Events />}
+            {activeTab === 'admin' && profile?.role === 'admin' && <AdminPanel />}
+            {activeTab === 'profile' && <Profile />}
+          </Suspense>
         </div>
       )}
 

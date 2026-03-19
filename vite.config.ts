@@ -18,4 +18,18 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    target: "es2020",
+    cssCodeSplit: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-map": ["maplibre-gl", "@turf/turf"],
+          "vendor-auth-data": ["@clerk/clerk-react", "@supabase/supabase-js", "@tanstack/react-query"],
+          "vendor-ui": ["framer-motion", "lucide-react", "sonner"],
+        },
+      },
+    },
+  },
 }));

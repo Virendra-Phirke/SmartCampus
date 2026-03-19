@@ -5,6 +5,7 @@ import * as z from 'zod';
 import { X, MapPin, Building2, CheckCircle2 } from 'lucide-react';
 import { useAddBuilding, useUpdateBuilding } from '@/hooks/useBuildings';
 import type { Building } from '@/lib/types';
+import { useAppDialog } from '@/hooks/useAppDialog';
 
 const buildingSchema = z.object({
     name: z.string().min(3, "Name must be at least 3 characters"),
@@ -23,6 +24,7 @@ interface BuildingFormProps {
 }
 
 export const BuildingForm = ({ initialLat, initialLng, existingBuilding, onClose }: BuildingFormProps) => {
+    const { alert } = useAppDialog();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const addBuilding = useAddBuilding();
     const updateBuilding = useUpdateBuilding();
@@ -57,7 +59,11 @@ export const BuildingForm = ({ initialLat, initialLng, existingBuilding, onClose
             onClose();
         } catch (error) {
             console.error(error);
-            alert('Failed to save location.');
+            await alert({
+                title: 'Failed to save location',
+                description: 'Please try again. If this persists, verify database write permissions.',
+                confirmText: 'OK',
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -71,7 +77,7 @@ export const BuildingForm = ({ initialLat, initialLng, existingBuilding, onClose
                         <Building2 className="w-5 h-5 text-primary" />
                         {existingBuilding ? 'Edit Location' : 'Add New Location'}
                     </h2>
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors">
+                    <button title="Close dialog" onClick={onClose} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>

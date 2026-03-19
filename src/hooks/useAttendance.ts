@@ -46,35 +46,6 @@ export const useAttendance = () => {
         }) => {
             if (!userId) throw new Error('Not authenticated');
 
-            const ensureFallbackBuilding = async () => {
-                const fallbackId = 'general-checkin';
-
-                const { data: existingFallback } = await supabase
-                    .from('buildings')
-                    .select('id')
-                    .eq('id', fallbackId)
-                    .maybeSingle();
-
-                if (!existingFallback) {
-                    await supabase
-                        .from('buildings')
-                        .upsert({
-                            id: fallbackId,
-                            name: 'General Check-in',
-                            short_name: 'General',
-                            category: 'facility',
-                            lat: 0,
-                            lng: 0,
-                            description: 'Auto-created fallback location for QR attendance.',
-                            floors: 1,
-                            departments: [],
-                            qr_code: null,
-                        }, { onConflict: 'id' });
-                }
-
-                return fallbackId;
-            };
-
             const resolveBuildingId = async () => {
                 if (buildingId) {
                     const { data: existing } = await supabase
@@ -93,8 +64,7 @@ export const useAttendance = () => {
                     .maybeSingle();
 
                 if (firstBuilding?.id) return firstBuilding.id as string;
-
-                return ensureFallbackBuilding();
+                return null;
             };
 
             if (sessionId) {
@@ -111,7 +81,7 @@ export const useAttendance = () => {
                 }
             }
 
-            let resolvedBuildingId = await resolveBuildingId();
+            const resolvedBuildingId = await resolveBuildingId();
 
             const insertPayload: Record<string, unknown> = {
                 user_id: userId,
@@ -155,10 +125,14 @@ export const useAttendance = () => {
 
                 if (!error) break;
 
-                // Building FK fallback recovery
-                if (error.code === '23503' && String(error.message || '').toLowerCase().includes('building_id')) {
-                    resolvedBuildingId = await ensureFallbackBuilding();
-                    currentPayload.building_id = resolvedBuildingId;
+                // Building relation issues fallback: retry without building_id when possible
+                if ((error.code === '23503' || error.code === '23502') && String(error.message || '').toLowerCase().includes('building_id')) {
+                    const fallbackExistingBuildingId = await resolveBuildingId();
+                    if (fallbackExistingBuildingId) {
+                        currentPayload.building_id = fallbackExistingBuildingId;
+                    } else {
+                        delete currentPayload.building_id;
+                    }
                     continue;
                 }
 

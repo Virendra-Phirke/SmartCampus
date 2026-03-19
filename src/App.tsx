@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -5,58 +6,79 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import { Navigate } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import SignInPage from "./pages/SignIn";
-import SignUpPage from "./pages/SignUp";
-import QrSessionDetails from "./pages/QrSessionDetails";
+import { AppDialogProvider } from "@/components/AppDialogProvider";
 
-const queryClient = new QueryClient();
+const Index = lazy(() => import("./pages/Index"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const SignInPage = lazy(() => import("./pages/SignIn"));
+const SignUpPage = lazy(() => import("./pages/SignUp"));
+const QrSessionDetails = lazy(() => import("./pages/QrSessionDetails"));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
+const AppLoading = () => (
+  <div className="min-h-screen w-full bg-background flex items-center justify-center">
+    <div className="h-8 w-8 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Public auth routes */}
-          <Route path="/sign-in/*" element={<SignInPage />} />
-          <Route path="/sign-up/*" element={<SignUpPage />} />
+      <AppDialogProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Suspense fallback={<AppLoading />}>
+            <Routes>
+              {/* Public auth routes */}
+              <Route path="/sign-in/*" element={<SignInPage />} />
+              <Route path="/sign-up/*" element={<SignUpPage />} />
 
-          {/* Protected routes */}
-          <Route
-            path="/"
-            element={
-              <>
-                <SignedIn>
-                  <Index />
-                </SignedIn>
-                <SignedOut>
-                  <Navigate to="/sign-in" replace />
-                </SignedOut>
-              </>
-            }
-          />
+              {/* Protected routes */}
+              <Route
+                path="/"
+                element={
+                  <>
+                    <SignedIn>
+                      <Index />
+                    </SignedIn>
+                    <SignedOut>
+                      <Navigate to="/sign-in" replace />
+                    </SignedOut>
+                  </>
+                }
+              />
 
-          <Route
-            path="/attendance/session/:sessionId"
-            element={
-              <>
-                <SignedIn>
-                  <QrSessionDetails />
-                </SignedIn>
-                <SignedOut>
-                  <Navigate to="/sign-in" replace />
-                </SignedOut>
-              </>
-            }
-          />
+              <Route
+                path="/attendance/session/:sessionId"
+                element={
+                  <>
+                    <SignedIn>
+                      <QrSessionDetails />
+                    </SignedIn>
+                    <SignedOut>
+                      <Navigate to="/sign-in" replace />
+                    </SignedOut>
+                  </>
+                }
+              />
 
-          {/* Catch-all */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+              {/* Catch-all */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </AppDialogProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

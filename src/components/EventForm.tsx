@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { X, Calendar, Bell, Megaphone, CheckCircle2 } from 'lucide-react';
 import { useAddEvent, useAddAnnouncement } from '@/hooks/useAddEvent';
+import { useAppDialog } from '@/hooks/useAppDialog';
 
 const eventSchema = z.object({
     title: z.string().min(3, "Title required"),
@@ -21,6 +22,7 @@ const announcementSchema = z.object({
 });
 
 export const EventForm = ({ onClose }: { onClose: () => void }) => {
+    const { alert } = useAppDialog();
     const [type, setType] = useState<'event' | 'announcement'>('event');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const addEvent = useAddEvent();
@@ -52,7 +54,11 @@ export const EventForm = ({ onClose }: { onClose: () => void }) => {
             onClose();
         } catch (e) {
             console.error(e);
-            alert('Failed to post event');
+            await alert({
+                title: 'Could not post event',
+                description: 'Please try again. If it keeps failing, check database permissions.',
+                confirmText: 'OK',
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -69,7 +75,11 @@ export const EventForm = ({ onClose }: { onClose: () => void }) => {
             onClose();
         } catch (e) {
             console.error(e);
-            alert('Failed to post announcement');
+            await alert({
+                title: 'Could not post announcement',
+                description: 'Please try again. If it keeps failing, check database permissions.',
+                confirmText: 'OK',
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -93,7 +103,7 @@ export const EventForm = ({ onClose }: { onClose: () => void }) => {
                             <Bell className="w-4 h-4" /> Alert
                         </button>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors">
+                    <button title="Close dialog" onClick={onClose} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>

@@ -7,6 +7,7 @@ import * as z from 'zod';
 import { BUILDING_TYPES, ENGINEERING_DEPARTMENTS, BUILDING_CATEGORIES } from '@/lib/collegeData';
 import { useAddBuilding } from '@/hooks/useBuildings';
 import { QRCodeSVG } from 'qrcode.react';
+import { useAppDialog } from '@/hooks/useAppDialog';
 
 const buildingSchema = z.object({
     name: z.string().min(2, "Name is required"),
@@ -24,6 +25,7 @@ interface CampusWizardProps {
 }
 
 export default function CampusWizard({ onClose, initialLocation }: CampusWizardProps) {
+    const { alert } = useAppDialog();
     const [step, setStep] = useState<WizardStep>('type');
     const [selectedType, setSelectedType] = useState<typeof BUILDING_TYPES[number] | null>(null);
     const [location, setLocation] = useState(initialLocation);
@@ -72,7 +74,11 @@ export default function CampusWizard({ onClose, initialLocation }: CampusWizardP
             setStep('success');
         } catch (error) {
             console.error('Failed to save building:', error);
-            alert('Failed to save building. Make sure you ran the disable_rls.sql script!');
+            await alert({
+                title: 'Failed to save building',
+                description: 'Make sure database permissions/migrations are applied, then try again.',
+                confirmText: 'OK',
+            });
         }
     };
 
@@ -94,7 +100,7 @@ export default function CampusWizard({ onClose, initialLocation }: CampusWizardP
                             </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground">
+                    <button title="Close wizard" onClick={onClose} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground">
                         <X className="w-5 h-5" />
                     </button>
                 </div>

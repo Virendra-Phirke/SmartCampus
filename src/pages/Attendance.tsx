@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, Clock, Calendar, CheckCircle, Users, Flame, ScanLine, User, Mail, Phone, BookOpen, Hash, Trash2, Pencil, Save, X, Eye, Edit3, Download } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -14,6 +14,7 @@ import { useUser } from '@clerk/clerk-react';
 import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { useAppDialog } from '@/hooks/useAppDialog';
 
 type HistoryFilter = 'today' | 'week' | 'all';
 
@@ -101,6 +102,7 @@ const getCurrentLocation = (maxWaitMs = 6000): Promise<{ lat: number; lng: numbe
 
 const Attendance = () => {
     const navigate = useNavigate();
+    const { confirm } = useAppDialog();
     const { user } = useUser();
     const { profile } = useProfile();
     const role = profile?.role || 'student';
@@ -137,7 +139,9 @@ const Attendance = () => {
 
     const buildSessionQrPayload = useCallback((session: any) => {
         // Compact payload for fast scan on low-end/older devices
-        return `CMA:${session.id}`;
+        const name = encodeURIComponent(session.session_name || 'Attendance Session');
+        const description = encodeURIComponent(session.description || '');
+        return `CMA|${session.id}|${name}|${description}`;
     }, []);
 
     const startEditDetails = (session: any) => {
@@ -204,6 +208,96 @@ const Attendance = () => {
         async (data: string) => {
             setShowScanner(false);
             try {
+                // New compact format: CMA|<sessionId>|<sessionName>|<description>
+                if (typeof data === 'string' && data.startsWith('CMA|')) {
+                    const [, compactSessionIdRaw, encodedName = '', encodedDescription = ''] = data.split('|');
+                    const compactSessionId = (compactSessionIdRaw || '').trim();
+                    const sessionName = decodeURIComponent(encodedName || 'Attendance%20Session');
+                    const sessionDescription = decodeURIComponent(encodedDescription || '');
+
+                    if (!compactSessionId) {
+                        toast.error('Invalid attendance QR');
+                        return;
+                    }
+
+                    const shouldMarkAttendance = await confirm({
+                        title: 'Confirm attendance',
+                        description: `Session: ${sessionName || 'Attendance Session'}\nDescription: ${sessionDescription || 'No description'}`,
+                        confirmText: 'Mark Attendance',
+                        cancelText: 'Cancel',
+                    });
+
+                    if (!shouldMarkAttendance) {
+                        toast.info('Attendance cancelled');
+                        return;
+                    }
+
+                    setLastScan({
+                        session: { name: sessionName || 'Attendance Session', description: sessionDescription || '' },
+                    });
+
+                    const buildingId = buildings?.[0]?.id || 'general-checkin';
+                    try {
+                        const location = await getCurrentLocation();
+                        const campusId = profile?.college_id || '';
+                        const campus = colleges?.find((c) => c.id === campusId) || null;
+
+                        let distanceFromCampusKm: number | null = null;
+                        if (location && campus) {
+                            distanceFromCampusKm = Number(
+                                calculateDistanceKm(location.lat, location.lng, campus.lat, campus.lng).toFixed(3)
+                            );
+                        }
+
+                        const fullName = profile?.full_name || user?.fullName || 'Unknown';
+                        const role = profile?.role || 'student';
+                        const courseOrDepartment = role === 'student'
+                            ? (profile?.course_id || profile?.department_id || '')
+                            : (profile?.department_id || profile?.course_id || '');
+
+                        const guestMeta = {
+                            username: user?.username || profile?.username || '',
+                            full_name: fullName,
+                            name: fullName,
+                            email: user?.primaryEmailAddress?.emailAddress || '',
+                            mobile_no: profile?.mobile_no || '',
+                            mobile: profile?.mobile_no || '',
+                            address: profile?.address || '',
+                            college: campusId,
+                            course_or_department: courseOrDepartment,
+                            branch: courseOrDepartment,
+                            year: role === 'student' ? (profile?.year || '') : '',
+                            section: role === 'student' ? (profile?.section || '') : '',
+                            roll_no: profile?.role_id || '',
+                            rollNo: profile?.role_id || '',
+                            role,
+                            staff_type: role === 'faculty' || role === 'staff' ? (profile?.staff_type || '') : '',
+                            timestamp: new Date().toISOString(),
+                            location_lat: location?.lat ?? null,
+                            location_lng: location?.lng ?? null,
+                            location_accuracy: location?.accuracy ?? null,
+                            campus_lat: campus?.lat ?? null,
+                            campus_lng: campus?.lng ?? null,
+                            distance_from_campus_km: distanceFromCampusKm,
+                            distanceFromCampusKm,
+                        };
+
+                        await checkIn({
+                            buildingId,
+                            method: 'qr',
+                            sessionId: compactSessionId,
+                            metadata: guestMeta,
+                        });
+
+                        setScannedPeople(prev => [guestMeta as unknown as ScannedPerson, ...prev]);
+                        toast.success('✅ Attendance Marked!', { description: `${sessionName}` });
+                        redirectToAttendanceTab();
+                    } catch (e: any) {
+                        toast.error(e?.message || 'Check-in failed');
+                    }
+                    return;
+                }
+
                 // Fast compact format: CMA:<sessionId>
                 if (typeof data === 'string' && data.startsWith('CMA:')) {
                     const compactSessionId = data.replace('CMA:', '').trim();
@@ -219,13 +313,83 @@ const Attendance = () => {
                         .maybeSingle();
 
                     if (sessionMetaError || !sessionMeta) {
-                        toast.error('Session not found or expired');
+                        // Proceed without metadata fetch (RLS-safe fallback)
+                        const shouldMarkAttendance = await confirm({
+                            title: 'Confirm attendance',
+                            description: `Session: Attendance Session\nDescription: No description`,
+                            confirmText: 'Mark Attendance',
+                            cancelText: 'Cancel',
+                        });
+
+                        if (!shouldMarkAttendance) {
+                            toast.info('Attendance cancelled');
+                            return;
+                        }
+
+                        const buildingId = buildings?.[0]?.id || 'general-checkin';
+                        const location = await getCurrentLocation();
+                        const campusId = profile?.college_id || '';
+                        const campus = colleges?.find((c) => c.id === campusId) || null;
+
+                        let distanceFromCampusKm: number | null = null;
+                        if (location && campus) {
+                            distanceFromCampusKm = Number(
+                                calculateDistanceKm(location.lat, location.lng, campus.lat, campus.lng).toFixed(3)
+                            );
+                        }
+
+                        const fullName = profile?.full_name || user?.fullName || 'Unknown';
+                        const role = profile?.role || 'student';
+                        const courseOrDepartment = role === 'student'
+                            ? (profile?.course_id || profile?.department_id || '')
+                            : (profile?.department_id || profile?.course_id || '');
+
+                        const guestMeta = {
+                            username: user?.username || profile?.username || '',
+                            full_name: fullName,
+                            name: fullName,
+                            email: user?.primaryEmailAddress?.emailAddress || '',
+                            mobile_no: profile?.mobile_no || '',
+                            mobile: profile?.mobile_no || '',
+                            address: profile?.address || '',
+                            college: campusId,
+                            course_or_department: courseOrDepartment,
+                            branch: courseOrDepartment,
+                            year: role === 'student' ? (profile?.year || '') : '',
+                            section: role === 'student' ? (profile?.section || '') : '',
+                            roll_no: profile?.role_id || '',
+                            rollNo: profile?.role_id || '',
+                            role,
+                            staff_type: role === 'faculty' || role === 'staff' ? (profile?.staff_type || '') : '',
+                            timestamp: new Date().toISOString(),
+                            location_lat: location?.lat ?? null,
+                            location_lng: location?.lng ?? null,
+                            location_accuracy: location?.accuracy ?? null,
+                            campus_lat: campus?.lat ?? null,
+                            campus_lng: campus?.lng ?? null,
+                            distance_from_campus_km: distanceFromCampusKm,
+                            distanceFromCampusKm,
+                        };
+
+                        await checkIn({
+                            buildingId,
+                            method: 'qr',
+                            sessionId: compactSessionId,
+                            metadata: guestMeta,
+                        });
+
+                        setScannedPeople(prev => [guestMeta as unknown as ScannedPerson, ...prev]);
+                        toast.success('✅ Attendance Marked!', { description: 'Attendance Session' });
+                        redirectToAttendanceTab();
                         return;
                     }
 
-                    const shouldMarkAttendance = window.confirm(
-                        `Confirm attendance?\n\nSession: ${sessionMeta.session_name || 'Attendance Session'}\nDescription: ${sessionMeta.description || 'No description'}`
-                    );
+                    const shouldMarkAttendance = await confirm({
+                        title: 'Confirm attendance',
+                        description: `Session: ${sessionMeta.session_name || 'Attendance Session'}\nDescription: ${sessionMeta.description || 'No description'}`,
+                        confirmText: 'Mark Attendance',
+                        cancelText: 'Cancel',
+                    });
 
                     if (!shouldMarkAttendance) {
                         toast.info('Attendance cancelled');
@@ -300,9 +464,12 @@ const Attendance = () => {
 
                 const parsed = JSON.parse(data);
                 if (parsed.type === 'CAMPUSMATE_ATTENDANCE') {
-                    const shouldMarkAttendance = window.confirm(
-                        `Confirm attendance?\n\nSession: ${parsed.session?.name || 'Attendance Session'}\nDescription: ${parsed.session?.description || 'No description'}`
-                    );
+                    const shouldMarkAttendance = await confirm({
+                        title: 'Confirm attendance',
+                        description: `Session: ${parsed.session?.name || 'Attendance Session'}\nDescription: ${parsed.session?.description || 'No description'}`,
+                        confirmText: 'Mark Attendance',
+                        cancelText: 'Cancel',
+                    });
 
                     if (!shouldMarkAttendance) {
                         toast.info('Attendance cancelled');
@@ -385,14 +552,21 @@ const Attendance = () => {
         [buildings, checkIn, profile, user, colleges, redirectToAttendanceTab]
     );
 
-    const filteredRecords = records.filter(r => {
-        const d = new Date(r.checked_in_at);
-        if (filter === 'today') return isToday(d);
-        if (filter === 'week') return isThisWeek(d);
-        return true;
-    });
+    const filteredRecords = useMemo(() => {
+        return records.filter((r) => {
+            const d = new Date(r.checked_in_at);
+            if (filter === 'today') return isToday(d);
+            if (filter === 'week') return isThisWeek(d);
+            return true;
+        });
+    }, [records, filter]);
 
-    const roleBadge = role === 'admin' ? 'bg-amber-500' : role === 'faculty' ? 'bg-emerald-600' : role === 'staff' ? 'bg-violet-500' : 'bg-primary';
+    const roleBadge = useMemo(
+        () => (role === 'admin' ? 'bg-amber-500' : role === 'faculty' ? 'bg-emerald-600' : role === 'staff' ? 'bg-violet-500' : 'bg-primary'),
+        [role]
+    );
+
+    const animateHistoryItems = filteredRecords.length <= 60;
 
     return (
         <div className="flex flex-col h-full overflow-hidden bg-background">
@@ -541,10 +715,17 @@ const Attendance = () => {
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            if (confirm('Delete this QR session and all its attendance records?')) {
+                                                            confirm({
+                                                                title: 'Delete QR session?',
+                                                                description: 'Delete this QR session and all its attendance records?',
+                                                                confirmText: 'Delete',
+                                                                cancelText: 'Keep',
+                                                                destructive: true,
+                                                            }).then((ok) => {
+                                                                if (!ok) return;
                                                                 deleteSession(session.id);
                                                                 toast.success('Session deleted');
-                                                            }
+                                                            });
                                                         }}
                                                         className="w-7 h-7 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 flex items-center justify-center transition-colors"
                                                         title="Delete session"
@@ -754,18 +935,33 @@ const Attendance = () => {
                             <div className="text-center py-6 text-muted-foreground animate-pulse text-xs">Loading...</div>
                         ) : filteredRecords.length > 0 ? (
                             filteredRecords.map(record => (
-                                <motion.div key={record.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
-                                    className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border shadow-sm">
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                        <CheckCircle className="w-4 h-4" />
+                                animateHistoryItems ? (
+                                    <motion.div key={record.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+                                        className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border shadow-sm">
+                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                            <CheckCircle className="w-4 h-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-semibold text-xs truncate">{record.building_name || 'Location'}</h4>
+                                            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                                <Clock className="w-2.5 h-2.5" /> {format(new Date(record.checked_in_at), 'h:mm a • MMM d')}
+                                            </p>
+                                        </div>
+                                    </motion.div>
+                                ) : (
+                                    <div key={record.id}
+                                        className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border shadow-sm">
+                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                            <CheckCircle className="w-4 h-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-semibold text-xs truncate">{record.building_name || 'Location'}</h4>
+                                            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                                <Clock className="w-2.5 h-2.5" /> {format(new Date(record.checked_in_at), 'h:mm a • MMM d')}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-semibold text-xs truncate">{record.building_name || 'Location'}</h4>
-                                        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                            <Clock className="w-2.5 h-2.5" /> {format(new Date(record.checked_in_at), 'h:mm a • MMM d')}
-                                        </p>
-                                    </div>
-                                </motion.div>
+                                )
                             ))
                         ) : (
                             <div className="text-center py-8 bg-card rounded-xl border border-dashed border-border">

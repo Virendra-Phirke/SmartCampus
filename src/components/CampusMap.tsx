@@ -64,6 +64,17 @@ const STYLE_URLS: Record<string, string | maplibregl.StyleSpecification> = {
 const fmtDist = (m: number) => (m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`);
 const estimateSteps = (m: number) => Math.round(m / 0.7);
 const walkingETA = (m: number) => { const min = Math.ceil(m / 80); return min < 60 ? `${min} min` : `${Math.floor(min / 60)}h ${min % 60}m`; };
+const haversineMeters = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+  const R = 6371000;
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 const CampusMap = ({
   campus, selectedBuilding, onSelectBuilding, userLocation, userAccuracy,
@@ -74,6 +85,7 @@ const CampusMap = ({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<Record<string, maplibregl.Marker>>({});
+  const markerDistanceLabelRef = useRef<Record<string, HTMLDivElement | null>>({});
   const userMarkerRef = useRef<maplibregl.Marker | null>(null);
   const destMarkerRef = useRef<maplibregl.Marker | null>(null);
   const prevLayerRef = useRef(activeLayer);
@@ -81,6 +93,8 @@ const CampusMap = ({
   const measurePointsRef = useRef<maplibregl.LngLat[]>([]);
   const measureMarkersRef = useRef<maplibregl.Marker[]>([]);
   const arrivedRef = useRef(false);
+  const lastDistanceLabelsUpdateRef = useRef(0);
+  const lastFollowCameraUpdateRef = useRef(0);
   const [mapReady, setMapReady] = useState(false);
 
   const { data: supabaseBuildings } = useBuildings();
@@ -89,6 +103,11 @@ const CampusMap = ({
     if (supabaseBuildings && supabaseBuildings.length > 0) return supabaseBuildings.map(toBuildingLegacy);
     return staticBuildings;
   }, [supabaseBuildings]);
+
+  const navDistanceMeters = useMemo(() => {
+    if (!navigatingTo || !userLocation) return null;
+    return haversineMeters(userLocation[0], userLocation[1], navigatingTo.lat, navigatingTo.lng);
+  }, [navigatingTo, userLocation]);
 
   // ── Helper: add custom layers after style loads ──
   const addCustomLayers = useCallback((map: maplibregl.Map) => {
@@ -190,6 +209,7 @@ const CampusMap = ({
 
     Object.values(markersRef.current).forEach(m => m.remove());
     markersRef.current = {};
+    markerDistanceLabelRef.current = {};
 
     buildingsList.forEach((b) => {
       if (activeFilter && b.category !== activeFilter) return;
@@ -202,14 +222,15 @@ const CampusMap = ({
       // Distance from user
       let distLabel = '';
       if (userLocation) {
-        const d = turf.distance(turf.point([userLocation[1], userLocation[0]]), turf.point([b.lng, b.lat]), { units: 'meters' });
+        const d = haversineMeters(userLocation[0], userLocation[1], b.lat, b.lng);
         distLabel = fmtDist(d);
       }
 
       const el = document.createElement('div');
       el.className = 'campus-marker';
-      el.innerHTML = `
-        <div style="
+
+      const dot = document.createElement('div');
+      dot.style.cssText = `
           width:${size}px;height:${size}px;
           background:${color};
           border:2px solid rgba(10,12,20,0.8);
@@ -217,9 +238,15 @@ const CampusMap = ({
           box-shadow:0 0 ${isSelected ? 18 : 10}px ${color}80;
           transition:all .3s ease;
           ${isSelected ? 'animation:pulse-glow 2s ease-in-out infinite;' : ''}
-        "></div>
-        ${distLabel ? `<div class="marker-dist-label">${emoji} ${distLabel}</div>` : ''}
       `;
+      el.appendChild(dot);
+
+      const label = document.createElement('div');
+      label.className = 'marker-dist-label';
+      label.textContent = distLabel ? `${emoji} ${distLabel}` : '';
+      label.style.display = distLabel ? 'block' : 'none';
+      el.appendChild(label);
+      markerDistanceLabelRef.current[b.id] = label;
 
       el.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -244,7 +271,35 @@ const CampusMap = ({
     if (selectedBuilding && map) {
       map.flyTo({ center: [selectedBuilding.lng, selectedBuilding.lat], zoom: 18, duration: 600 });
     }
-  }, [buildingsList, activeFilter, selectedBuilding, onSelectBuilding, userLocation]);
+  }, [buildingsList, activeFilter, selectedBuilding, onSelectBuilding]);
+
+  // ── Update marker distance labels without recreating markers ──
+  useEffect(() => {
+    if (!buildingsList.length) return;
+
+    if (!userLocation) {
+      Object.values(markerDistanceLabelRef.current).forEach((label) => {
+        if (label) label.style.display = 'none';
+      });
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastDistanceLabelsUpdateRef.current < 1200) return;
+    lastDistanceLabelsUpdateRef.current = now;
+
+    buildingsList.forEach((b) => {
+      if (activeFilter && b.category !== activeFilter) return;
+
+      const label = markerDistanceLabelRef.current[b.id];
+      if (!label) return;
+
+      const emoji = categoryIconEmojis[b.category] || '📍';
+      const meters = haversineMeters(userLocation[0], userLocation[1], b.lat, b.lng);
+      label.textContent = `${emoji} ${fmtDist(meters)}`;
+      label.style.display = 'block';
+    });
+  }, [userLocation, buildingsList, activeFilter]);
 
   // ── User location marker + accuracy + trail ──
   useEffect(() => {
@@ -279,7 +334,7 @@ const CampusMap = ({
       // GPS breadcrumb trail
       const trail = gpsTrailRef.current;
       const last = trail.length > 0 ? trail[trail.length - 1] : null;
-      if (!last || turf.distance(turf.point([last[1], last[0]]), turf.point([lng, lat]), { units: 'meters' }) > 3) {
+      if (!last || haversineMeters(last[0], last[1], lat, lng) > 3) {
         trail.push([lat, lng]);
         if (trail.length > 500) trail.shift();
         if (map.getSource('gps-trail')) {
@@ -291,7 +346,11 @@ const CampusMap = ({
 
       // Follow mode
       if (isFollowing) {
-        map.easeTo({ center: [lng, lat], bearing: userHeading || map.getBearing(), duration: 500 });
+        const ts = performance.now();
+        if (ts - lastFollowCameraUpdateRef.current > 350) {
+          lastFollowCameraUpdateRef.current = ts;
+          map.easeTo({ center: [lng, lat], bearing: userHeading || map.getBearing(), duration: 350 });
+        }
       }
     }
   }, [userLocation, userAccuracy, userHeading, isFollowing, mapReady]);
@@ -320,7 +379,7 @@ const CampusMap = ({
       }
 
       // Distance + ETA
-      const dist = turf.distance(turf.point([uLng, uLat]), turf.point([navigatingTo.lng, navigatingTo.lat]), { units: 'meters' });
+      const dist = haversineMeters(uLat, uLng, navigatingTo.lat, navigatingTo.lng);
 
       // Arrival check
       if (dist < 30 && !arrivedRef.current) {
@@ -439,10 +498,9 @@ const CampusMap = ({
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-[400]">
           <div className="bg-primary/90 backdrop-blur-xl text-primary-foreground px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-2 shadow-lg shadow-primary/20 border border-primary/30">
             <div className="w-2 h-2 bg-primary-foreground rounded-full animate-pulse" />
-            {(() => {
-              const d = turf.distance(turf.point([userLocation[1], userLocation[0]]), turf.point([navigatingTo.lng, navigatingTo.lat]), { units: 'meters' });
-              return `${navigatingTo.shortName} · ${fmtDist(d)} · ${walkingETA(d)}`;
-            })()}
+            {navDistanceMeters != null
+              ? `${navigatingTo.shortName} · ${fmtDist(navDistanceMeters)} · ${walkingETA(navDistanceMeters)}`
+              : navigatingTo.shortName}
           </div>
         </div>
       )}
