@@ -46,6 +46,57 @@ export const useAttendance = () => {
         }) => {
             if (!userId) throw new Error('Not authenticated');
 
+            const ensureFallbackBuilding = async () => {
+                const fallbackId = 'general-checkin';
+
+                const { data: existingFallback } = await supabase
+                    .from('buildings')
+                    .select('id')
+                    .eq('id', fallbackId)
+                    .maybeSingle();
+
+                if (!existingFallback) {
+                    await supabase
+                        .from('buildings')
+                        .upsert({
+                            id: fallbackId,
+                            name: 'General Check-in',
+                            short_name: 'General',
+                            category: 'facility',
+                            lat: 0,
+                            lng: 0,
+                            description: 'Auto-created fallback location for QR attendance.',
+                            floors: 1,
+                            departments: [],
+                            qr_code: null,
+                        }, { onConflict: 'id' });
+                }
+
+                return fallbackId;
+            };
+
+            const resolveBuildingId = async () => {
+                if (buildingId) {
+                    const { data: existing } = await supabase
+                        .from('buildings')
+                        .select('id')
+                        .eq('id', buildingId)
+                        .maybeSingle();
+
+                    if (existing?.id) return existing.id as string;
+                }
+
+                const { data: firstBuilding } = await supabase
+                    .from('buildings')
+                    .select('id')
+                    .limit(1)
+                    .maybeSingle();
+
+                if (firstBuilding?.id) return firstBuilding.id as string;
+
+                return ensureFallbackBuilding();
+            };
+
             if (sessionId) {
                 const { data: existing, error: existingError } = await supabase
                     .from('attendance_records')
@@ -60,9 +111,11 @@ export const useAttendance = () => {
                 }
             }
 
+            let resolvedBuildingId = await resolveBuildingId();
+
             const insertPayload: Record<string, unknown> = {
                 user_id: userId,
-                building_id: buildingId,
+                building_id: resolvedBuildingId,
                 method,
                 session_id: sessionId,
                 metadata: metadata,
@@ -101,6 +154,14 @@ export const useAttendance = () => {
                 error = (result.error as { code?: string; message?: string } | null) || null;
 
                 if (!error) break;
+
+                // Building FK fallback recovery
+                if (error.code === '23503' && String(error.message || '').toLowerCase().includes('building_id')) {
+                    resolvedBuildingId = await ensureFallbackBuilding();
+                    currentPayload.building_id = resolvedBuildingId;
+                    continue;
+                }
+
                 if (error.code !== 'PGRST204') break;
 
                 const msg = String(error.message || '');
@@ -115,6 +176,8 @@ export const useAttendance = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['attendance', userId] });
+            queryClient.invalidateQueries({ queryKey: ['creator-sessions', userId] });
+            queryClient.invalidateQueries({ queryKey: ['qr-session-details'] });
         },
     });
 
