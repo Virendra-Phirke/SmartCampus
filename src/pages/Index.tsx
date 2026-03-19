@@ -156,8 +156,8 @@ const Index = () => {
       return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
     };
 
-    const MIN_UPDATE_INTERVAL_MS = 1500;
-    const MIN_MOVE_METERS = 4;
+    const MIN_UPDATE_INTERVAL_MS = 1000;
+    const MIN_MOVE_METERS = 1;
 
     const handlePosition = (pos: GeolocationPosition) => {
         const next: [number, number] = [pos.coords.latitude, pos.coords.longitude];
@@ -167,6 +167,7 @@ const Index = () => {
 
         if (last && now - lastTs < MIN_UPDATE_INTERVAL_MS) {
           const moved = distanceMeters(last, next);
+          // If we recently updated and moved less than threshold, skip to avoid UI jitter
           if (moved < MIN_MOVE_METERS) {
             return;
           }
@@ -187,10 +188,19 @@ const Index = () => {
       if (lowAccuracyWatchId != null) return;
       lowAccuracyWatchId = navigator.geolocation.watchPosition(
         handlePosition,
-        () => { },
+        (err) => {
+          console.warn('Low accuracy GPS failed:', err.message);
+          // Only show error once if both failed
+          if (err.code === err.PERMISSION_DENIED) {
+            if (!gpsErrorToastShownRef.current) {
+               gpsErrorToastShownRef.current = true;
+               toast.error('Location permission denied. Please enable GPS.');
+            }
+          }
+        },
         {
           enableHighAccuracy: false,
-          timeout: 20000,
+          timeout: 30000,
           maximumAge: 15000,
         }
       );
@@ -199,6 +209,7 @@ const Index = () => {
     highAccuracyWatchId = navigator.geolocation.watchPosition(
       handlePosition,
       (error) => {
+        console.warn('High accuracy GPS failed:', error.message);
         // Android devices can fail high-accuracy frequently; fallback to network-based location
         if (error.code === error.PERMISSION_DENIED) {
           if (!gpsErrorToastShownRef.current) {
@@ -219,10 +230,13 @@ const Index = () => {
     // Try immediate first fix (helps Android warm up faster)
     navigator.geolocation.getCurrentPosition(
       handlePosition,
-      () => startLowAccuracyWatch(),
+      (error) => {
+         console.warn('Initial quick GPS fix failed:', error.message);
+         startLowAccuracyWatch();
+      },
       {
         enableHighAccuracy: true,
-        timeout: 12000,
+        timeout: 10000,
         maximumAge: 5000,
       }
     );

@@ -57,7 +57,7 @@ const calculateDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: num
     return earthRadiusKm * c;
 };
 
-const getCurrentLocation = (maxWaitMs = 6000): Promise<{ lat: number; lng: number; accuracy: number | null } | null> => {
+const getCurrentLocation = (maxWaitMs = 15000): Promise<{ lat: number; lng: number; accuracy: number | null } | null> => {
     return new Promise((resolve) => {
         if (!('geolocation' in navigator)) {
             resolve(null);
@@ -92,10 +92,10 @@ const getCurrentLocation = (maxWaitMs = 6000): Promise<{ lat: number; lng: numbe
                         window.clearTimeout(fallbackTimer);
                         done(null);
                     },
-                    { enableHighAccuracy: false, timeout: maxWaitMs, maximumAge: 15000 }
+                    { enableHighAccuracy: false, timeout: maxWaitMs / 2, maximumAge: 15000 }
                 );
             },
-            { enableHighAccuracy: true, timeout: maxWaitMs, maximumAge: 3000 }
+            { enableHighAccuracy: true, timeout: maxWaitMs, maximumAge: 5000 }
         );
     });
 };
