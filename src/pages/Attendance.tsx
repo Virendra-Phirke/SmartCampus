@@ -13,6 +13,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useUser } from '@clerk/clerk-react';
 import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 
 type HistoryFilter = 'today' | 'week' | 'all';
 
@@ -126,33 +127,9 @@ const Attendance = () => {
     }, [navigate]);
 
     const buildSessionQrPayload = useCallback((session: any) => {
-        return JSON.stringify({
-            type: 'CAMPUSMATE_ATTENDANCE',
-            session_id: session.id,
-            creator: {
-                name: profile?.full_name || user?.fullName || 'Unknown',
-                email: user?.primaryEmailAddress?.emailAddress || '',
-                role: profile?.role || 'student',
-                mobile: profile?.mobile_no || '',
-                college: session.college_id || profile?.college_id || '',
-                rollNo: profile?.role_id || '',
-            },
-            session: {
-                name: session.session_name || 'Attendance Session',
-                description: session.description || '',
-                targetAudience: session.target_audience || 'students',
-                department: session.department || '',
-                ...(session.target_audience === 'staff'
-                    ? { staffType: session.staff_type || '' }
-                    : { year: session.year || '', section: session.section || '' }),
-                date: session.created_at ? new Date(session.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                time: session.created_at
-                    ? new Date(session.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-                    : new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-                createdAt: session.created_at || new Date().toISOString(),
-            },
-        });
-    }, [profile, user]);
+        // Compact payload for fast scan on low-end/older devices
+        return `CMA:${session.id}`;
+    }, []);
 
     const startEditDetails = (session: any) => {
         setEditingDetailsSessionId(session.id);
@@ -218,6 +195,100 @@ const Attendance = () => {
         async (data: string) => {
             setShowScanner(false);
             try {
+                // Fast compact format: CMA:<sessionId>
+                if (typeof data === 'string' && data.startsWith('CMA:')) {
+                    const compactSessionId = data.replace('CMA:', '').trim();
+                    if (!compactSessionId) {
+                        toast.error('Invalid attendance QR');
+                        return;
+                    }
+
+                    const { data: sessionMeta, error: sessionMetaError } = await supabase
+                        .from('attendance_sessions')
+                        .select('id, session_name, description, college_id')
+                        .eq('id', compactSessionId)
+                        .maybeSingle();
+
+                    if (sessionMetaError || !sessionMeta) {
+                        toast.error('Session not found or expired');
+                        return;
+                    }
+
+                    const shouldMarkAttendance = window.confirm(
+                        `Confirm attendance?\n\nSession: ${sessionMeta.session_name || 'Attendance Session'}\nDescription: ${sessionMeta.description || 'No description'}`
+                    );
+
+                    if (!shouldMarkAttendance) {
+                        toast.info('Attendance cancelled');
+                        return;
+                    }
+
+                    setLastScan({
+                        session: { name: sessionMeta.session_name || 'Attendance Session', description: sessionMeta.description || '' },
+                    });
+
+                    const buildingId = buildings?.[0]?.id || 'general-checkin';
+                    try {
+                        const location = await getCurrentLocation();
+                        const campusId = sessionMeta.college_id || profile?.college_id || '';
+                        const campus = colleges?.find((c) => c.id === campusId) || null;
+
+                        let distanceFromCampusKm: number | null = null;
+                        if (location && campus) {
+                            distanceFromCampusKm = Number(
+                                calculateDistanceKm(location.lat, location.lng, campus.lat, campus.lng).toFixed(3)
+                            );
+                        }
+
+                        const fullName = profile?.full_name || user?.fullName || 'Unknown';
+                        const role = profile?.role || 'student';
+                        const courseOrDepartment = role === 'student'
+                            ? (profile?.course_id || profile?.department_id || '')
+                            : (profile?.department_id || profile?.course_id || '');
+
+                        const guestMeta = {
+                            username: user?.username || profile?.username || '',
+                            full_name: fullName,
+                            name: fullName,
+                            email: user?.primaryEmailAddress?.emailAddress || '',
+                            mobile_no: profile?.mobile_no || '',
+                            mobile: profile?.mobile_no || '',
+                            address: profile?.address || '',
+                            college: campusId,
+                            course_or_department: courseOrDepartment,
+                            branch: courseOrDepartment,
+                            year: role === 'student' ? (profile?.year || '') : '',
+                            section: role === 'student' ? (profile?.section || '') : '',
+                            roll_no: profile?.role_id || '',
+                            rollNo: profile?.role_id || '',
+                            role,
+                            staff_type: role === 'faculty' || role === 'staff' ? (profile?.staff_type || '') : '',
+                            timestamp: new Date().toISOString(),
+                            location_lat: location?.lat ?? null,
+                            location_lng: location?.lng ?? null,
+                            location_accuracy: location?.accuracy ?? null,
+                            campus_lat: campus?.lat ?? null,
+                            campus_lng: campus?.lng ?? null,
+                            distance_from_campus_km: distanceFromCampusKm,
+                            distanceFromCampusKm,
+                        };
+
+                        await checkIn({
+                            buildingId,
+                            method: 'qr',
+                            sessionId: compactSessionId,
+                            metadata: guestMeta,
+                        });
+
+                        setScannedPeople(prev => [guestMeta as unknown as ScannedPerson, ...prev]);
+                        toast.success('✅ Attendance Marked!', { description: `${sessionMeta.session_name}` });
+                        redirectToAttendanceTab();
+                    } catch (e: any) {
+                        toast.error(e?.message || 'Check-in failed');
+                    }
+                    return;
+                }
+
                 const parsed = JSON.parse(data);
                 if (parsed.type === 'CAMPUSMATE_ATTENDANCE') {
                     const shouldMarkAttendance = window.confirm(
@@ -727,7 +798,14 @@ const Attendance = () => {
                                 <h4 className="font-bold text-sm mt-1">{viewerSession.session_name}</h4>
                             </div>
                             <div ref={viewerQrRef} className="bg-white rounded-2xl p-3 flex items-center justify-center mb-3">
-                                <QRCodeSVG value={buildSessionQrPayload(viewerSession)} size={220} level="H" includeMargin={true} />
+                                <QRCodeSVG
+                                    value={buildSessionQrPayload(viewerSession)}
+                                    size={250}
+                                    level="M"
+                                    bgColor="#FFFFFF"
+                                    fgColor="#000000"
+                                    includeMargin={true}
+                                />
                             </div>
                             <button
                                 onClick={handleDownloadViewedQr}

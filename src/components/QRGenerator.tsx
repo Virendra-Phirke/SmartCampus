@@ -42,30 +42,7 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const qrRef = useRef<HTMLDivElement>(null);
 
-    const qrPayload = JSON.stringify({
-        type: 'CAMPUSMATE_ATTENDANCE',
-        session_id: sessionId,
-        creator: {
-            name: profile?.full_name || user?.fullName || 'Unknown',
-            email: user?.primaryEmailAddress?.emailAddress || '',
-            role: profile?.role || 'student',
-            mobile: profile?.mobile_no || '',
-            college: collegeId,
-            rollNo: profile?.role_id || '',
-        },
-        session: {
-            name: sessionName || 'Attendance Session',
-            description: sessionDescription || '',
-            ...(showOptionalScope ? {
-                targetAudience,
-                department,
-                ...(targetAudience === 'students' ? { year, section } : { staffType }),
-            } : {}),
-            date: new Date().toISOString().split('T')[0],
-            time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-            createdAt: new Date().toISOString(),
-        },
-    });
+    const qrPayload = sessionId ? `CMA:${sessionId}` : 'CMA:PENDING';
 
     const handleGenerate = async () => {
         if (!sessionName.trim()) {
@@ -300,8 +277,10 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
                             <div ref={qrRef} className="p-5 bg-white rounded-3xl shadow-md border border-gray-100 mb-6 relative group">
                                 <QRCodeSVG
                                     value={qrPayload}
-                                    size={240}
-                                    level="H"
+                                    size={260}
+                                    level="M"
+                                    bgColor="#FFFFFF"
+                                    fgColor="#000000"
                                     includeMargin={true}
                                 />
                                 <div className="absolute inset-0 bg-black/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />

@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle, Clock3, Mail, Phone, BookOpen, Hash, School, User, Users, MapPin, Home } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock3, Mail, Phone, BookOpen, Hash, School, User, Users, MapPin, Home, CalendarDays } from 'lucide-react';
 import { format } from 'date-fns';
 import { useUser } from '@clerk/clerk-react';
 import { supabase } from '@/lib/supabase';
@@ -12,6 +12,8 @@ const QrSessionDetails = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { user } = useUser();
   const { data: colleges } = useColleges();
+  const [filterDate, setFilterDate] = useState('');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   const { data, isLoading } = useQuery({
     queryKey: ['qr-session-details', user?.id, sessionId],
@@ -41,12 +43,30 @@ const QrSessionDetails = () => {
   });
 
   const session = data?.session;
-  const records = data?.records || [];
+  const records = useMemo(() => data?.records || [], [data?.records]);
 
   const collegeName = useMemo(() => {
     if (!session?.college_id) return '—';
     return colleges?.find((c) => c.id === session.college_id)?.short_name || '—';
   }, [colleges, session?.college_id]);
+
+  const filteredRecords = useMemo(() => {
+    const source = [...records];
+    const byDate = filterDate
+      ? source.filter((record: any) => {
+          const checkedDate = format(new Date(record.checked_in_at), 'yyyy-MM-dd');
+          return checkedDate === filterDate;
+        })
+      : source;
+
+    byDate.sort((a: any, b: any) => {
+      const aTime = new Date(a.checked_in_at).getTime();
+      const bTime = new Date(b.checked_in_at).getTime();
+      return sortOrder === 'desc' ? bTime - aTime : aTime - bTime;
+    });
+
+    return byDate;
+  }, [records, filterDate, sortOrder]);
 
   if (isLoading) {
     return (
@@ -97,7 +117,7 @@ const QrSessionDetails = () => {
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div className="rounded-xl bg-muted/40 p-3">
               <p className="text-[10px] text-muted-foreground">Total Scans</p>
-              <p className="text-xl font-bold flex items-center gap-1"><Users className="w-4 h-4 text-primary" />{records.length}</p>
+              <p className="text-xl font-bold flex items-center gap-1"><Users className="w-4 h-4 text-primary" />{filteredRecords.length}</p>
             </div>
             <div className="rounded-xl bg-muted/40 p-3">
               <p className="text-[10px] text-muted-foreground">Created</p>
@@ -115,14 +135,36 @@ const QrSessionDetails = () => {
         </div>
 
         <div className="space-y-2">
-          <h2 className="text-sm font-bold">Checked-in Users</h2>
-          {records.length === 0 ? (
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold">Checked-in Users</h2>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <CalendarDays className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  className="h-8 pl-7 pr-2 rounded-lg bg-card border border-border text-[11px]"
+                  title="Filter by date"
+                />
+              </div>
+              <button
+                onClick={() => setSortOrder((s) => (s === 'desc' ? 'asc' : 'desc'))}
+                className="h-8 px-2.5 rounded-lg bg-card border border-border text-[11px] font-medium"
+                title="Toggle sort order"
+              >
+                {sortOrder === 'desc' ? 'Newest' : 'Oldest'}
+              </button>
+            </div>
+          </div>
+
+          {filteredRecords.length === 0 ? (
             <div className="bg-card border border-dashed border-border rounded-2xl p-6 text-center">
-              <p className="text-sm font-medium">No check-ins yet</p>
-              <p className="text-xs text-muted-foreground mt-1">This page auto-refreshes every 5 seconds.</p>
+              <p className="text-sm font-medium">No check-ins for selected date</p>
+              <p className="text-xs text-muted-foreground mt-1">Try clearing date filter or choose another date.</p>
             </div>
           ) : (
-            records.map((record: any) => {
+            filteredRecords.map((record: any) => {
               const m = record.metadata || {};
               return (
                 <div key={record.id} className="bg-card border border-border rounded-2xl p-3 shadow-sm">

@@ -211,7 +211,7 @@ const CampusSelectionMap = ({ onSelectCampus, userLocation }: CampusSelectionMap
 
     return (
         <div className="relative w-full h-full">
-            <div ref={containerRef} className="w-full h-full bg-background" />
+            <div ref={containerRef} className="w-full h-full bg-background campus-selection-map-shell" />
 
             {/* ═══ Top-left: small search icon OR expanded search ═══ */}
             <div className="absolute top-[max(env(safe-area-inset-top),12px)] left-3 z-[400]">

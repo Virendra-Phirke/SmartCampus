@@ -88,6 +88,8 @@ const Index = () => {
   const [showBuildingForm, setShowBuildingForm] = useState(false);
   const [editingBuilding, setEditingBuilding] = useState<CampusBuilding | null>(null);
   const mapCenterRef = useRef<[number, number]>([0, 0]);
+  const lastGpsUpdateMsRef = useRef(0);
+  const lastGpsLocationRef = useRef<[number, number] | null>(null);
 
   // ── Support deep link tab selection: /?tab=attendance ──
   useEffect(() => {
@@ -138,14 +140,50 @@ const Index = () => {
   // ── GPS tracking ──
   useEffect(() => {
     if (!('geolocation' in navigator)) return;
+
+    const distanceMeters = (a: [number, number], b: [number, number]) => {
+      const R = 6371000;
+      const toRad = (v: number) => (v * Math.PI) / 180;
+      const dLat = toRad(b[0] - a[0]);
+      const dLng = toRad(b[1] - a[1]);
+      const lat1 = toRad(a[0]);
+      const lat2 = toRad(b[0]);
+      const h =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+    };
+
+    const MIN_UPDATE_INTERVAL_MS = 1500;
+    const MIN_MOVE_METERS = 4;
+
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        setUserLocation([pos.coords.latitude, pos.coords.longitude]);
-        setUserAccuracy(pos.coords.accuracy);
+        const next: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        const now = Date.now();
+        const last = lastGpsLocationRef.current;
+        const lastTs = lastGpsUpdateMsRef.current;
+
+        if (last && now - lastTs < MIN_UPDATE_INTERVAL_MS) {
+          const moved = distanceMeters(last, next);
+          if (moved < MIN_MOVE_METERS) {
+            return;
+          }
+        }
+
+        lastGpsUpdateMsRef.current = now;
+        lastGpsLocationRef.current = next;
+
+        setUserLocation(next);
+        setUserAccuracy(Math.round(pos.coords.accuracy));
         if (pos.coords.heading != null) setUserHeading(pos.coords.heading);
       },
       () => { },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 3000 }
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 2000,
+      }
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);

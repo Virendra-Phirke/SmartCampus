@@ -160,6 +160,27 @@
 .maplibregl-popup-tip {
   border-top-color: hsl(200, 20%, 10%) !important;
 }
+
+/* ─── Map controls spacing to avoid overlap with top UI ─── */
+.campus-map-shell .maplibregl-ctrl-top-right {
+  top: max(env(safe-area-inset-top), 88px) !important;
+  right: 10px !important;
+}
+
+.campus-selection-map-shell .maplibregl-ctrl-top-right {
+  top: max(env(safe-area-inset-top), 64px) !important;
+  right: 10px !important;
+}
+
+@media (max-width: 640px) {
+  .campus-map-shell .maplibregl-ctrl-top-right {
+    top: max(env(safe-area-inset-top), 96px) !important;
+  }
+
+  .campus-selection-map-shell .maplibregl-ctrl-top-right {
+    top: max(env(safe-area-inset-top), 72px) !important;
+  }
+}
 .campus-tooltip {
   background: hsl(200, 20%, 10%) !important;
   color: hsl(180, 10%, 94%) !important;
@@ -221,4 +242,10 @@
   background: hsl(200, 20%, 10%) !important;
   border: 1px solid hsl(200, 15%, 18%) !important;
   border-radius: 12px !important;
+}
+
+/* ─── Sonner close button visibility ─── */
+.toaster [data-close-button] {
+  opacity: 1 !important;
+  color: hsl(var(--foreground)) !important;
 }
