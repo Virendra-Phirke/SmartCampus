@@ -9,6 +9,7 @@ import { Navigate } from "react-router-dom";
 import { AppDialogProvider } from "@/components/AppDialogProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { useGlobalNotifications } from "@/hooks/useGlobalNotifications";
+import NotificationEnforcer from "@/components/NotificationEnforcer";
 
 const GlobalNotifier = () => {
   useGlobalNotifications();
@@ -42,6 +43,7 @@ const App = () => (
   <ThemeProvider defaultTheme="system">
     <QueryClientProvider client={queryClient}>
       <GlobalNotifier />
+      <NotificationEnforcer />
       <TooltipProvider>
         <AppDialogProvider>
           <Toaster />

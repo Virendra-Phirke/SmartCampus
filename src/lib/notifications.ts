@@ -135,6 +135,9 @@ class PushNotificationManager {
  user_id: userId,
  subscription: subscription.toJSON(),
  created_at: new Date().toISOString(),
+ updated_at: new Date().toISOString(),
+ }, {
+ onConflict: 'user_id',
  });
  } catch (error) {
  console.error('Failed to save push subscription to server:', error);

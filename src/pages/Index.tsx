@@ -717,7 +717,7 @@ const Index = () => {
                   toast.info('Waiting for your GPS location...');
                   return;
                 }
-                setIsFollowing(true);
+                setIsFollowing(false);
                 setRecenterTrigger((v) => v + 1);
               }}
               title="Center on my location"

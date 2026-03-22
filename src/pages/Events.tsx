@@ -12,6 +12,7 @@ import { EventForm } from '@/components/EventForm';
 import { useUser } from '@clerk/clerk-react';
 import { useDeleteEvent, useDeleteAnnouncement } from '@/hooks/useAddEvent';
 import { Trash2, Pencil } from 'lucide-react';
+import { useAppDialog } from '@/hooks/useAppDialog';
 
 const eventCategoryConfig: Record<string, { icon: any; color: string; label: string }> = {
     academic: { icon: GraduationCap, color: 'text-blue-400 bg-blue-400/15', label: 'Academic' },
@@ -32,6 +33,7 @@ const priorityConfig: Record<string, { color: string; icon: any }> = {
 const EventCard = ({ event, onEdit, currentUserId }: { event: Event, onEdit: (e: Event) => void, currentUserId?: string }) => {
     const [expanded, setExpanded] = useState(false);
     const deleteEvent = useDeleteEvent();
+    const { confirm } = useAppDialog();
     const cfg = eventCategoryConfig[event.category] || eventCategoryConfig.other;
     const Icon = cfg.icon;
     const startDate = new Date(event.start_time);
@@ -92,7 +94,17 @@ const EventCard = ({ event, onEdit, currentUserId }: { event: Event, onEdit: (e:
                             <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
-                            onClick={(e) => { e.stopPropagation(); if (confirm('Delete this event?')) deleteEvent.mutate(event.id); }}
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                const ok = await confirm({
+                                    title: 'Delete event?',
+                                    description: 'This will permanently remove the event from all users.',
+                                    confirmText: 'Delete',
+                                    cancelText: 'Cancel',
+                                    destructive: true,
+                                });
+                                if (ok) deleteEvent.mutate(event.id);
+                            }}
                             className="p-1.5 rounded-md hover:bg-red-500/10 text-red-500 transition-colors"
                             title="Delete Event"
                         >
@@ -130,6 +142,7 @@ const AnnouncementBanner = ({ announcement, onEdit, currentUserId }: { announcem
     const pcfg = priorityConfig[announcement.priority] || priorityConfig.low;
     const PIcon = pcfg.icon;
     const deleteAnnouncement = useDeleteAnnouncement();
+    const { confirm } = useAppDialog();
     const isOwner = announcement.created_by && announcement.created_by === currentUserId;
 
     return (
@@ -150,12 +163,25 @@ const AnnouncementBanner = ({ announcement, onEdit, currentUserId }: { announcem
                 <div className="flex gap-2 justify-end mt-1 pt-2 border-t border-current/10">
                     <button
                         onClick={() => onEdit(announcement)}
+                        title="Edit alert"
+                        aria-label="Edit alert"
                         className="p-1.5 rounded-md hover:bg-current/10 transition-colors"
                     >
                         <Pencil className="w-3 h-3" />
                     </button>
                     <button
-                        onClick={() => { if (confirm('Delete this alert?')) deleteAnnouncement.mutate(announcement.id); }}
+                        onClick={async () => {
+                            const ok = await confirm({
+                                title: 'Delete alert?',
+                                description: 'This alert will be removed and users will no longer see it.',
+                                confirmText: 'Delete',
+                                cancelText: 'Cancel',
+                                destructive: true,
+                            });
+                            if (ok) deleteAnnouncement.mutate(announcement.id);
+                        }}
+                        title="Delete alert"
+                        aria-label="Delete alert"
                         className="p-1.5 rounded-md hover:bg-current/10 transition-colors"
                     >
                         <Trash2 className="w-3 h-3" />
@@ -267,6 +293,8 @@ const Events = () => {
             <div className="absolute bottom-24 right-4 z-[400]">
                 <button
                     onClick={() => setShowEventForm(true)}
+                    title="Add event or alert"
+                    aria-label="Add event or alert"
                     className="w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.4)] flex items-center justify-center hover:scale-105 transition-transform active:scale-95 border-2 border-primary/20"
                 >
                     <Plus className="w-6 h-6" />

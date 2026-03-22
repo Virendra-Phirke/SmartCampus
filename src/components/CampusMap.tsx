@@ -109,11 +109,12 @@ const CampusMap = ({
   const userMarkerRef = useRef<maplibregl.Marker | null>(null);
   const destMarkerRef = useRef<maplibregl.Marker | null>(null);
   const prevLayerRef = useRef(activeLayer);
-  const gpsTrailRef = useRef<[number, number][]>([]);
   const measurePointsRef = useRef<maplibregl.LngLat[]>([]);
   const measureMarkersRef = useRef<maplibregl.Marker[]>([]);
   const arrivedRef = useRef(false);
   const routeFramedForDestRef = useRef<string | null>(null);
+  const hasAutoFramedCampusRef = useRef(false);
+  const lastAutoFocusedBuildingIdRef = useRef<string | null>(null);
   const lastFollowCameraUpdateRef = useRef(0);
   const lastRecenterTriggerRef = useRef(recenterTrigger);
   const styleCacheRef = useRef<Record<string, maplibregl.StyleSpecification>>({});
@@ -165,11 +166,7 @@ const CampusMap = ({
       map.addLayer({ id: 'gps-accuracy-fill', type: 'fill', source: 'gps-accuracy', paint: { 'fill-color': '#4285f4', 'fill-opacity': 0.1 } });
       map.addLayer({ id: 'gps-accuracy-line', type: 'line', source: 'gps-accuracy', paint: { 'line-color': '#4285f4', 'line-opacity': 0.3, 'line-width': 1.5 } });
     }
-    // GPS trail
-    if (!map.getSource('gps-trail')) {
-      map.addSource('gps-trail', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] }, properties: {} } });
-      map.addLayer({ id: 'gps-trail-line', type: 'line', source: 'gps-trail', paint: { 'line-color': '#4285f4', 'line-opacity': 0.5, 'line-width': 3 } });
-    }
+    // GPS trail intentionally disabled (users mistook it for active navigation)
     // Navigation route
     if (!map.getSource('nav-route')) {
       map.addSource('nav-route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] }, properties: {} } });
@@ -212,6 +209,20 @@ const CampusMap = ({
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showCompass: true }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'top-left');
+
+    // Gesture tuning (mobile-first): smoother zoom/pan, avoid accidental rotate/pitch
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+    if (isTouchDevice) {
+      map.touchZoomRotate.disableRotation();
+      map.dragRotate.disable();
+      map.touchPitch.disable();
+      map.dragPan.enable({ linearity: 0.2, deceleration: 2400, maxSpeed: 1100 });
+      map.scrollZoom.setWheelZoomRate(1 / 700);
+      map.scrollZoom.setZoomRate(1 / 120);
+    } else {
+      map.scrollZoom.setWheelZoomRate(1 / 550);
+      map.scrollZoom.setZoomRate(1 / 100);
+    }
 
     // Track center for "Add Location"
     if (onCenterChange) {
@@ -387,11 +398,28 @@ const CampusMap = ({
       markersRef.current[b.id] = marker;
     });
 
-    // Fly to selected building
-    if (selectedBuilding && map) {
-      map.flyTo({ center: [selectedBuilding.lng, selectedBuilding.lat], zoom: 18, duration: 600 });
+  }, [buildingsList, activeFilter, selectedBuilding, navigatingTo, onSelectBuilding, categoryReactIconSvgs, mapZoom]);
+
+  // ── Auto-focus selected building only once per selection (prevents zoom snapping) ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    if (!selectedBuilding) {
+      lastAutoFocusedBuildingIdRef.current = null;
+      return;
     }
-  }, [buildingsList, activeFilter, selectedBuilding, navigatingTo, onCancelNavigation, onSelectBuilding, categoryReactIconSvgs, mapZoom]);
+
+    if (lastAutoFocusedBuildingIdRef.current === selectedBuilding.id) return;
+    lastAutoFocusedBuildingIdRef.current = selectedBuilding.id;
+
+    map.easeTo({
+      center: [selectedBuilding.lng, selectedBuilding.lat],
+      zoom: Math.max(map.getZoom(), 18),
+      duration: 600,
+      essential: true,
+    });
+  }, [selectedBuilding, mapReady]);
 
   // ── User location marker + accuracy + trail ──
   useEffect(() => {
@@ -421,19 +449,6 @@ const CampusMap = ({
       if (userAccuracy && map.getSource('gps-accuracy')) {
         const circle = turf.circle([lng, lat], Math.min(userAccuracy, 200), { steps: 64, units: 'meters' });
         (map.getSource('gps-accuracy') as maplibregl.GeoJSONSource).setData(circle);
-      }
-
-      // GPS breadcrumb trail
-      const trail = gpsTrailRef.current;
-      const last = trail.length > 0 ? trail[trail.length - 1] : null;
-      if (!last || haversineMeters(last[0], last[1], lat, lng) > 3) {
-        trail.push([lat, lng]);
-        if (trail.length > 500) trail.shift();
-        if (map.getSource('gps-trail')) {
-          (map.getSource('gps-trail') as maplibregl.GeoJSONSource).setData({
-            type: 'Feature', geometry: { type: 'LineString', coordinates: trail.map(p => [p[1], p[0]]) }, properties: {},
-          });
-        }
       }
 
       // Follow mode
@@ -616,6 +631,7 @@ const CampusMap = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !campus) return;
+    if (hasAutoFramedCampusRef.current) return;
 
     const bounds = new maplibregl.LngLatBounds();
     // Always ensure the main campus coordinate is in the view
@@ -628,6 +644,7 @@ const CampusMap = ({
       if (!mapRef.current) return;
       try { 
         mapRef.current.fitBounds(bounds, { padding: 60, maxZoom: 17, pitch: 45, duration: 1500 }); 
+        hasAutoFramedCampusRef.current = true;
       } catch { /* */ }
     }, 500);
   }, [mapReady, campus, buildingsList]);

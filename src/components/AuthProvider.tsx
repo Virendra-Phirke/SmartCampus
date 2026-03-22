@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { initializePushNotifications } from '@/lib/notifications';
+import { initializePushNotifications, requestNotificationPermission } from '@/lib/notifications';
 import { initializePathfinding } from '@/lib/pathfinding';
 import { testConnection } from '@/lib/supabase';
 
@@ -18,7 +18,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  }
  });
  
- initializePushNotifications().catch(() => {});
+ const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+ initializePushNotifications(vapidKey).then(() => {
+ requestNotificationPermission().catch(() => {});
+ }).catch(() => {});
  initializePathfinding().catch(() => {});
  } else {
  queryClient.clear();

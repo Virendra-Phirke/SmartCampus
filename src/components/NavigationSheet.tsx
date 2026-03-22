@@ -85,7 +85,7 @@ const NavigationSheet = ({ building, onClose, onStartNavigation, userLocation }:
  <span className="line-clamp-1">{building.name}</span>
  </h2>
  </div>
- <button onClick={onClose} className="p-2 rounded-full bg-muted/50 hover:bg-muted transition-colors shrink-0">
+ <button onClick={onClose} title="Close navigation sheet" className="p-2 rounded-full bg-muted/50 hover:bg-muted transition-colors shrink-0">
  <X className="w-5 h-5 text-muted-foreground" />
  </button>
  </div>
