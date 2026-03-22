@@ -6,7 +6,7 @@ import { initializePathfinding } from '@/lib/pathfinding';
 import { testConnection } from '@/lib/supabase';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
- const { isSignedIn } = useAuth();
+ const { isSignedIn, userId } = useAuth();
  const queryClient = useQueryClient();
 
  useEffect(() => {
@@ -19,14 +19,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  });
  
  const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
- initializePushNotifications(vapidKey).then(() => {
+ initializePushNotifications(vapidKey, userId || null).then(() => {
  requestNotificationPermission().catch(() => {});
  }).catch(() => {});
  initializePathfinding().catch(() => {});
  } else {
  queryClient.clear();
  }
- }, [isSignedIn, queryClient]);
+ }, [isSignedIn, userId, queryClient]);
 
  return <>{children}</>;
 }

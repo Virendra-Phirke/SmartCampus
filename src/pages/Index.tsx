@@ -175,6 +175,14 @@ const Index = () => {
   useEffect(() => {
     if (!('geolocation' in navigator)) return;
 
+    if (!window.isSecureContext) {
+      if (!gpsErrorToastShownRef.current) {
+        gpsErrorToastShownRef.current = true;
+        toast.error('GPS requires HTTPS on mobile browsers.');
+      }
+      return;
+    }
+
     const distanceMeters = (a: [number, number], b: [number, number]) => {
       const R = 6371000;
       const toRad = (v: number) => (v * Math.PI) / 180;
@@ -216,66 +224,100 @@ const Index = () => {
     let highAccuracyWatchId: number | null = null;
     let lowAccuracyWatchId: number | null = null;
 
+    const clearWatches = () => {
+      if (highAccuracyWatchId != null) navigator.geolocation.clearWatch(highAccuracyWatchId);
+      if (lowAccuracyWatchId != null) navigator.geolocation.clearWatch(lowAccuracyWatchId);
+      highAccuracyWatchId = null;
+      lowAccuracyWatchId = null;
+    };
+
     const startLowAccuracyWatch = () => {
       if (lowAccuracyWatchId != null) return;
       lowAccuracyWatchId = navigator.geolocation.watchPosition(
         handlePosition,
         (err) => {
           console.warn('Low accuracy GPS failed:', err.message);
-          // Only show error once if both failed
-          if (err.code === err.PERMISSION_DENIED) {
-            if (!gpsErrorToastShownRef.current) {
-               gpsErrorToastShownRef.current = true;
-               toast.error('Location permission denied. Please enable GPS.');
-            }
+          if (err.code === err.PERMISSION_DENIED && !gpsErrorToastShownRef.current) {
+            gpsErrorToastShownRef.current = true;
+            toast.error('Location permission denied. Please enable GPS.');
           }
         },
         {
           enableHighAccuracy: false,
-          timeout: 30000,
-          maximumAge: 15000,
+          timeout: 35000,
+          maximumAge: 20000,
         }
       );
     };
 
-    highAccuracyWatchId = navigator.geolocation.watchPosition(
-      handlePosition,
-      (error) => {
-        console.warn('High accuracy GPS failed:', error.message);
-        // Android devices can fail high-accuracy frequently; fallback to network-based location
-        if (error.code === error.PERMISSION_DENIED) {
+    const startWatches = () => {
+      clearWatches();
+
+      highAccuracyWatchId = navigator.geolocation.watchPosition(
+        handlePosition,
+        (error) => {
+          console.warn('High accuracy GPS failed:', error.message);
+          if (error.code === error.PERMISSION_DENIED) {
+            if (!gpsErrorToastShownRef.current) {
+              gpsErrorToastShownRef.current = true;
+              toast.error('Location permission denied. Please allow GPS in browser settings.');
+            }
+            return;
+          }
+          startLowAccuracyWatch();
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 22000,
+          maximumAge: 3000,
+        }
+      );
+
+      navigator.geolocation.getCurrentPosition(
+        handlePosition,
+        () => startLowAccuracyWatch(),
+        {
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: 2000,
+        }
+      );
+    };
+
+    const ensurePermissionThenStart = async () => {
+      try {
+        if (!('permissions' in navigator) || !(navigator as any).permissions?.query) {
+          startWatches();
+          return;
+        }
+
+        const status = await (navigator as any).permissions.query({ name: 'geolocation' });
+        if (status.state === 'denied') {
           if (!gpsErrorToastShownRef.current) {
             gpsErrorToastShownRef.current = true;
-            toast.error('Location permission denied. Please allow GPS in browser settings.');
+            toast.error('Location access is blocked. Enable it in browser site settings.');
           }
           return;
         }
-        startLowAccuracyWatch();
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 5000,
+        startWatches();
+      } catch {
+        startWatches();
       }
-    );
+    };
 
-    // Try immediate first fix (helps Android warm up faster)
-    navigator.geolocation.getCurrentPosition(
-      handlePosition,
-      (error) => {
-         console.warn('Initial quick GPS fix failed:', error.message);
-         startLowAccuracyWatch();
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 5000,
-      }
-    );
+    ensurePermissionThenStart();
+
+    const handleResume = () => {
+      if (document.visibilityState === 'visible') ensurePermissionThenStart();
+    };
+
+    window.addEventListener('online', ensurePermissionThenStart);
+    document.addEventListener('visibilitychange', handleResume);
 
     return () => {
-      if (highAccuracyWatchId != null) navigator.geolocation.clearWatch(highAccuracyWatchId);
-      if (lowAccuracyWatchId != null) navigator.geolocation.clearWatch(lowAccuracyWatchId);
+      window.removeEventListener('online', ensurePermissionThenStart);
+      document.removeEventListener('visibilitychange', handleResume);
+      clearWatches();
     };
   }, []);
 

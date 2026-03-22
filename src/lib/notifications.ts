@@ -24,6 +24,7 @@ export interface NotificationPermission {
 
 class PushNotificationManager {
  private vapidKey: string = '';
+ private userId: string | null = null;
  private permission: NotificationPermission = {
  granted: false,
  default: true,
@@ -45,11 +46,20 @@ class PushNotificationManager {
  }
  }
 
- async initialize(vapidKey?: string): Promise<boolean> {
- if (this.isInitialized) return true;
-
+ async initialize(vapidKey?: string, userId?: string | null): Promise<boolean> {
  if (vapidKey) {
  this.vapidKey = vapidKey;
+ }
+
+ if (userId) {
+ this.userId = userId;
+ }
+
+ if (this.isInitialized) {
+ if (this.permission.granted && this.vapidKey && !this.pushSubscription) {
+ await this.subscribeToPush();
+ }
+ return true;
  }
 
  if (!('Notification' in window)) {
@@ -110,9 +120,10 @@ class PushNotificationManager {
  }
 
  try {
+ const applicationServerKey = this.urlBase64ToUint8Array(this.vapidKey) as unknown as BufferSource;
  const subscription = await this.serviceWorkerRegistration.pushManager.subscribe({
  userVisibleOnly: true,
- applicationServerKey: this.urlBase64ToUint8Array(this.vapidKey),
+ applicationServerKey,
  });
 
  this.pushSubscription = subscription;
@@ -124,7 +135,7 @@ class PushNotificationManager {
  }
 
  private async sendSubscriptionToServer(subscription: PushSubscription): Promise<void> {
- const userId = localStorage.getItem('clerk_user_id');
+ const userId = this.userId || localStorage.getItem('clerk_user_id');
  if (!userId) {
  console.warn('No user ID found, cannot save push subscription');
  return;
@@ -404,8 +415,8 @@ class PushNotificationManager {
 
 export const pushNotifications = new PushNotificationManager();
 
-export async function initializePushNotifications(vapidKey?: string): Promise<boolean> {
- return pushNotifications.initialize(vapidKey);
+export async function initializePushNotifications(vapidKey?: string, userId?: string | null): Promise<boolean> {
+ return pushNotifications.initialize(vapidKey, userId);
 }
 
 export async function requestNotificationPermission(): Promise<NotificationPermission> {

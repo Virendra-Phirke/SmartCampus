@@ -9,11 +9,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? Deno.env.get('PROJECT_URL') ?? '';
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY') ?? '';
     const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY') ?? '';
     const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') ?? '';
-    const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@campusmate.app';
+    // VAPID subject is a contact URI (not an email notification channel)
+    const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'https://campusmate.app/support';
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
       return new Response(JSON.stringify({ error: 'Missing push configuration' }), {
