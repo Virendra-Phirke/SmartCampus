@@ -276,13 +276,18 @@ const Attendance = ({ userLocation }: AttendanceProps = {}) => {
                     }
 
                     const guestMeta = await buildGuestMeta();
+                    const guestMetaWithSession = {
+                        ...guestMeta,
+                        session_name: sessionName || 'Attendance Session',
+                        session_description: sessionDescription || '',
+                    };
                     const buildingId = buildings?.[0]?.id || 'general-checkin';
 
                     await checkIn({
                         buildingId,
                         method: 'qr',
                         sessionId: compactSessionId,
-                        metadata: guestMeta,
+                        metadata: guestMetaWithSession,
                     });
 
                     setLastScan({
@@ -296,7 +301,7 @@ const Attendance = ({ userLocation }: AttendanceProps = {}) => {
                         },
                     });
 
-                    setScannedPeople(prev => [guestMeta as unknown as ScannedPerson, ...prev]);
+                    setScannedPeople(prev => [guestMetaWithSession as unknown as ScannedPerson, ...prev]);
                     toast.success('✅ Attendance Marked!', { description: `${sessionName || 'Attendance Session'}` });
                     redirectToAttendanceTab();
                     return;
@@ -331,13 +336,18 @@ const Attendance = ({ userLocation }: AttendanceProps = {}) => {
                     }
 
                     const guestMeta = await buildGuestMeta(sessionMeta?.college_id || undefined);
+                    const guestMetaWithSession = {
+                        ...guestMeta,
+                        session_name: sessionName,
+                        session_description: sessionDescription,
+                    };
                     const buildingId = buildings?.[0]?.id || 'general-checkin';
 
                     await checkIn({
                         buildingId,
                         method: 'qr',
                         sessionId: compactSessionId,
-                        metadata: guestMeta,
+                        metadata: guestMetaWithSession,
                     });
 
                     setLastScan({
@@ -351,7 +361,7 @@ const Attendance = ({ userLocation }: AttendanceProps = {}) => {
                         },
                     });
 
-                    setScannedPeople(prev => [guestMeta as unknown as ScannedPerson, ...prev]);
+                    setScannedPeople(prev => [guestMetaWithSession as unknown as ScannedPerson, ...prev]);
                     toast.success('✅ Attendance Marked!', { description: sessionName });
                     redirectToAttendanceTab();
                     return;
@@ -373,17 +383,22 @@ const Attendance = ({ userLocation }: AttendanceProps = {}) => {
                         }
 
                         const guestMeta = await buildGuestMeta(parsed?.creator?.college || parsed?.session?.college || undefined);
+                        const guestMetaWithSession = {
+                            ...guestMeta,
+                            session_name: parsed?.session?.name || 'Attendance Session',
+                            session_description: parsed?.session?.description || '',
+                        };
                         const buildingId = buildings?.[0]?.id || 'general-checkin';
 
                         await checkIn({
                             buildingId,
                             method: 'qr',
                             sessionId: parsed.session_id,
-                            metadata: guestMeta,
+                            metadata: guestMetaWithSession,
                         });
 
                         setLastScan(parsed);
-                        setScannedPeople(prev => [guestMeta as unknown as ScannedPerson, ...prev]);
+                        setScannedPeople(prev => [guestMetaWithSession as unknown as ScannedPerson, ...prev]);
                         toast.success('✅ Attendance Marked!', { description: `${parsed.session?.name || 'Attendance Session'}` });
                         redirectToAttendanceTab();
                         return;

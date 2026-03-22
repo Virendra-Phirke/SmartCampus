@@ -10,6 +10,7 @@ import { AppDialogProvider } from "@/components/AppDialogProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { useGlobalNotifications } from "@/hooks/useGlobalNotifications";
 import NotificationEnforcer from "@/components/NotificationEnforcer";
+import { AuthProvider } from "@/components/AuthProvider";
 
 const GlobalNotifier = () => {
   useGlobalNotifications();
@@ -42,15 +43,16 @@ const AppLoading = () => (
 const App = () => (
   <ThemeProvider defaultTheme="system">
     <QueryClientProvider client={queryClient}>
-      <GlobalNotifier />
-      <NotificationEnforcer />
-      <TooltipProvider>
-        <AppDialogProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Suspense fallback={<AppLoading />}>
-              <Routes>
+      <AuthProvider>
+        <GlobalNotifier />
+        <NotificationEnforcer />
+        <TooltipProvider>
+          <AppDialogProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Suspense fallback={<AppLoading />}>
+                <Routes>
                 {/* Public auth routes */}
                 <Route path="/sign-in/*" element={<SignInPage />} />
                 <Route path="/sign-up/*" element={<SignUpPage />} />
@@ -86,11 +88,12 @@ const App = () => (
 
                 {/* Catch-all */}
                 <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
-        </AppDialogProvider>
-      </TooltipProvider>
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+          </AppDialogProvider>
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   </ThemeProvider>
 );

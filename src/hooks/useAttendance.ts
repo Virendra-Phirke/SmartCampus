@@ -14,7 +14,7 @@ export const useAttendance = () => {
             if (!userId) return [];
             const { data, error } = await supabase
                 .from('attendance_records')
-                .select('*, buildings(name)')
+                .select('*, buildings(name), attendance_sessions(session_name)')
                 .eq('user_id', userId)
                 .order('checked_in_at', { ascending: false })
                 .limit(50);
@@ -26,7 +26,11 @@ export const useAttendance = () => {
 
             return (data || []).map((r: any) => ({
                 ...r,
-                building_name: r.buildings?.name || 'Unknown',
+                building_name:
+                    r?.metadata?.session_name ||
+                    r?.attendance_sessions?.session_name ||
+                    r?.buildings?.name ||
+                    (r?.method === 'qr' ? 'QR Session' : 'Unknown'),
             }));
         },
         enabled: !!userId,
