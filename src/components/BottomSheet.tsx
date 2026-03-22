@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MapPin, Building2, Layers, Navigation, CheckCircle, Clock, Route, PenSquare, LayoutGrid } from 'lucide-react';
+import { X, MapPin, Building2, Layers, Navigation, CheckCircle, Clock, Route, PenSquare, LayoutGrid, CircleX } from 'lucide-react';
 import { categoryIcons, type CampusBuilding } from '@/data/campusData';
 import { useAttendance } from '@/hooks/useAttendance';
 import { toast } from 'sonner';
@@ -12,6 +12,8 @@ interface BottomSheetProps {
   onNavigate?: (building: CampusBuilding) => void;
   userLocation?: [number, number] | null;
   onEdit?: (building: CampusBuilding) => void;
+  navigatingTo?: CampusBuilding | null;
+  onCancelNavigation?: () => void;
 }
 
 const calculateDistance = (
@@ -28,7 +30,7 @@ const calculateDistance = (
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-const BottomSheet = ({ building, onClose, onNavigate, userLocation, onEdit }: BottomSheetProps) => {
+const BottomSheet = ({ building, onClose, onNavigate, userLocation, onEdit, navigatingTo, onCancelNavigation }: BottomSheetProps) => {
   const { checkIn, isCheckingIn } = useAttendance();
   const [showManager, setShowManager] = useState(false);
 
@@ -37,6 +39,7 @@ const BottomSheet = ({ building, onClose, onNavigate, userLocation, onEdit }: Bo
     : null;
 
   const walkingTime = distance ? Math.ceil(distance / 80) : null; // ~80m/min walking speed
+  const isNavigating = navigatingTo?.id === building?.id;
 
   const handleCheckIn = async () => {
     if (!building) return;
@@ -115,12 +118,6 @@ const BottomSheet = ({ building, onClose, onNavigate, userLocation, onEdit }: Bo
                     : `${(distance / 1000).toFixed(1)} km`}
                 </div>
               )}
-              {walkingTime !== null && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 text-accent text-xs font-medium">
-                  <Clock className="w-3.5 h-3.5" />
-                  {walkingTime} min walk
-                </div>
-              )}
               {building.departments?.map((d) => (
                 <div
                   key={d}
@@ -134,13 +131,27 @@ const BottomSheet = ({ building, onClose, onNavigate, userLocation, onEdit }: Bo
 
             {/* Action buttons */}
             <div className="flex gap-2">
-              <button
-                onClick={() => onNavigate?.(building)}
-                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-secondary text-secondary-foreground font-heading font-semibold text-sm transition-all hover:bg-secondary/80"
-              >
-                <Navigation className="w-4 h-4" />
-                Navigate Here
-              </button>
+              {isNavigating ? (
+                <button
+                  onClick={() => {
+                    onCancelNavigation?.();
+                    onClose();
+                    toast.info('Navigation cancelled');
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-500/20 text-red-500 border border-red-500/30 font-heading font-semibold text-sm transition-all hover:bg-red-500/30"
+                >
+                  <CircleX className="w-4 h-4" />
+                  Cancel Navigation
+                </button>
+              ) : (
+                <button
+                  onClick={() => onNavigate?.(building)}
+                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-secondary text-secondary-foreground font-heading font-semibold text-sm transition-all hover:bg-secondary/80"
+                >
+                  <Navigation className="w-4 h-4" />
+                  Navigate Here
+                </button>
+              )}
               <button
                 onClick={() => setShowManager(true)}
                 className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-primary text-primary-foreground font-heading font-semibold text-sm glow-primary transition-all active:scale-[0.98]"

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import maplibregl from '@/lib/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import * as turf from '@turf/turf';
+import { MdApartment, MdBusiness, MdHome, MdLocationOn, MdSchool, MdSportsSoccer } from 'react-icons/md';
 import { buildings as staticBuildings, categoryColors, type CampusBuilding } from '@/data/campusData';
 import type { College } from '@/lib/types';
 import { useBuildings, toBuildingLegacy } from '@/hooks/useBuildings';
@@ -64,6 +66,7 @@ const STYLE_URLS: Record<string, string | maplibregl.StyleSpecification> = {
 const fmtDist = (m: number) => (m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`);
 const estimateSteps = (m: number) => Math.round(m / 0.7);
 const walkingETA = (m: number) => { const min = Math.ceil(m / 80); return min < 60 ? `${min} min` : `${Math.floor(min / 60)}h ${min % 60}m`; };
+const MARKER_VISIBILITY_ZOOM_THRESHOLD = 15;
 const haversineMeters = (lat1: number, lng1: number, lat2: number, lng2: number) => {
   const R = 6371000;
   const toRad = (v: number) => (v * Math.PI) / 180;
@@ -85,7 +88,6 @@ const CampusMap = ({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<Record<string, maplibregl.Marker>>({});
-  const markerDistanceLabelRef = useRef<Record<string, HTMLDivElement | null>>({});
   const campusMarkerRef = useRef<maplibregl.Marker | null>(null);
   const userMarkerRef = useRef<maplibregl.Marker | null>(null);
   const destMarkerRef = useRef<maplibregl.Marker | null>(null);
@@ -94,9 +96,9 @@ const CampusMap = ({
   const measurePointsRef = useRef<maplibregl.LngLat[]>([]);
   const measureMarkersRef = useRef<maplibregl.Marker[]>([]);
   const arrivedRef = useRef(false);
-  const lastDistanceLabelsUpdateRef = useRef(0);
   const lastFollowCameraUpdateRef = useRef(0);
   const [mapReady, setMapReady] = useState(false);
+  const [mapZoom, setMapZoom] = useState(campus.zoom);
 
   const { data: supabaseBuildings } = useBuildings();
 
@@ -169,7 +171,7 @@ const CampusMap = ({
       trackUserLocation: true,
       showUserHeading: true
     }), 'top-right');
-    map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-left');
+    map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'top-left');
     map.addControl(new maplibregl.FullscreenControl(), 'top-right');
 
     // Track center for "Add Location"
@@ -179,6 +181,11 @@ const CampusMap = ({
         onCenterChange([c.lat, c.lng]);
       });
     }
+
+    // Track zoom level for marker visibility
+    map.on('zoom', () => {
+      setMapZoom(map.getZoom());
+    });
 
     map.on('style.load', () => {
       addCustomLayers(map);
@@ -209,7 +216,7 @@ const CampusMap = ({
   }, [activeLayer]);
 
   // ── Draw College Campus Marker ──
-  const collegeLucideSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a2 2 0 0 1-.019 3.838L12.82 19.22a2 2 0 0 1-1.64 0L2.6 14.76a2 2 0 0 1-.02-3.84L11.18 6.54a2 2 0 0 1 1.64 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>`;
+  const collegeReactIconSvg = useMemo(() => renderToStaticMarkup(<MdSchool size={20} />), []);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
@@ -229,14 +236,18 @@ const CampusMap = ({
       distLabel = fmtDist(d);
     }
 
+    // Only show campus marker when zoomed out
+    const shouldShowCampusMarker = mapZoom <= MARKER_VISIBILITY_ZOOM_THRESHOLD;
+
     if (!campusMarkerRef.current) {
       const el = document.createElement('div');
       el.className = 'campus-main-marker';
       el.style.zIndex = '50';
+      el.style.display = shouldShowCampusMarker ? 'flex' : 'none';
       el.innerHTML = `
         <div style="position: relative; display: flex; flex-direction: column; items: center;">
           <div style="background:hsl(210,100%,55%);width:40px;height:40px;border-radius:50%;border:4px solid white;box-shadow:0 0 20px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white; z-index: 2; position: relative;">
-            ${collegeLucideSvg}
+            ${collegeReactIconSvg}
           </div>
           <div id="college-dist-label" class="marker-dist-label" style="display: ${distLabel ? 'block' : 'none'}; position: absolute; top: -30px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: rgba(0,0,0,0.8); color: white; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 13px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 3;">
             ${distLabel}
@@ -273,89 +284,58 @@ const CampusMap = ({
         distEl.innerHTML = distLabel;
         distEl.style.display = distLabel ? 'block' : 'none';
       }
+      // Update visibility based on zoom
+      const markerEl = campusMarkerRef.current.getElement();
+      markerEl.style.display = shouldShowCampusMarker ? 'flex' : 'none';
     }
-  }, [mapReady, campus, userLocation, onSelectBuilding]);
+  }, [mapReady, campus, userLocation, onSelectBuilding, collegeReactIconSvg, mapZoom]);
 
   // ── Building markers ──
-  const categoryLucideSvgs: Record<string, string> = useMemo(() => ({
-    academic: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
-    admin: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
-    facility: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>`,
-    sports: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`,
-    hostel: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  const categoryReactIconSvgs: Record<string, string> = useMemo(() => ({
+    academic: renderToStaticMarkup(<MdSchool size={16} />),
+    admin: renderToStaticMarkup(<MdBusiness size={16} />),
+    facility: renderToStaticMarkup(<MdApartment size={16} />),
+    sports: renderToStaticMarkup(<MdSportsSoccer size={16} />),
+    hostel: renderToStaticMarkup(<MdHome size={16} />),
   }), []);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
+    // Only show building markers when zoomed in
+    const shouldShowBuildingMarkers = mapZoom > MARKER_VISIBILITY_ZOOM_THRESHOLD;
+
     Object.values(markersRef.current).forEach(m => m.remove());
     markersRef.current = {};
-    markerDistanceLabelRef.current = {};
+
+    if (!shouldShowBuildingMarkers) return; // Don't render building markers when zoomed out
 
     buildingsList.forEach((b) => {
       if (activeFilter && b.category !== activeFilter) return;
 
       const isSelected = selectedBuilding?.id === b.id;
-      const color = isSelected ? 'hsl(38, 92%, 55%)' : categoryColors[b.category];
-      const svgIcon = categoryLucideSvgs[b.category] || categoryLucideSvgs.facility;
-
-      // Distance from user
-      let distLabel = '';
-      if (userLocation) {
-        const d = haversineMeters(userLocation[0], userLocation[1], b.lat, b.lng);
-        distLabel = fmtDist(d);
-      }
+      const isDestination = navigatingTo?.id === b.id;
+      const svgIcon = categoryReactIconSvgs[b.category] || categoryReactIconSvgs.facility;
+      const shouldShowLabel = isSelected || isDestination;
 
       const el = document.createElement('div');
       el.className = 'campus-marker';
 
-      // Design: Google Maps Style
-      // Selected = Red Teardrop pin, Unselected = Colored dot with text to the right
-      
-      const distText = distLabel ? `<span style="font-size:10px; margin-left:4px; opacity:0.85; font-weight:normal;">${distLabel}</span>` : '';
+      const markerSize = isSelected ? 34 : 28;
+      const markerRing = isSelected ? '2px solid #f59e0b' : (isDestination ? '2px solid #2563eb' : '2px solid #ffffff');
+      const markerShadow = isSelected
+        ? '0 0 0 4px rgba(245,158,11,0.24), 0 6px 14px rgba(0,0,0,0.35)'
+        : '0 4px 10px rgba(0,0,0,0.28)';
 
-      if (isSelected) {
-        // Active selected Google Maps Style big red drop pin
-        el.style.zIndex = '100';
-        el.innerHTML = `
-          <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translateY(-16px); filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">
-            <svg viewBox="0 0 24 34" width="34" height="48" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 0C5.373 0 0 5.373 0 12c0 8.5 12 22 12 22s12-13.5 12-22C24 5.373 18.627 0 12 0z" fill="#ea4335" />
-              <circle cx="12" cy="12" r="8" fill="#ffffff" />
-            </svg>
-            <div style="position: absolute; top: 8px; color: #ea4335; display:flex; align-items:center; justify-content:center;">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${svgIcon.replace(/<svg[^>]*>|<\/svg>/g, '')}</svg>
-            </div>
-            <div style="position: absolute; top: -28px; white-space: nowrap; background: white; color: #202124; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; box-shadow: 0 1px 4px rgba(0,0,0,0.3);">
-              ${b.shortName} <span id="building-dist-${b.id}" style="color: #5f6368; font-size: 11px; margin-left: 2px; display: ${distLabel ? 'inline' : 'none'};">${distLabel}</span>
-            </div>
+      el.innerHTML = `
+        <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          ${shouldShowLabel ? `<div style="position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;background:rgba(9,16,27,0.92);border:1px solid rgba(56,189,248,0.28);color:#e5f4ff;padding:5px 10px;border-radius:12px;font-size:12px;font-weight:700;line-height:1.1;box-shadow:0 6px 16px rgba(0,0,0,0.32);pointer-events:none;">${b.shortName || b.name}</div>` : ''}
+          <div style="width:${markerSize}px;height:${markerSize}px;border-radius:999px;background:${categoryColors[b.category] || '#2563eb'};border:${markerRing};box-shadow:${markerShadow};color:#ffffff;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+            <span style="display:flex;align-items:center;justify-content:center;line-height:0;">${svgIcon}</span>
           </div>
-        `;
-      } else {
-        // Unselected Google Maps Style POI
-        el.innerHTML = `
-          <div style="display: flex; align-items: center; gap: 4px; pointer-events: none;">
-            <div style="width: 20px; height: 20px; border-radius: 50%; background: ${categoryColors[b.category] || '#4285f4'}; border: 1.5px solid white; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); pointer-events: auto; cursor: pointer;">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${svgIcon.replace(/<svg[^>]*>|<\/svg>/g, '')}</svg>
-            </div>
-            <div style="font-size: 12px; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: white; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 1px 4px rgba(0,0,0,0.8); pointer-events: auto; cursor: pointer; white-space: nowrap; letter-spacing: -0.2px;">
-              ${b.shortName} <span id="building-dist-${b.id}" style="font-weight: 400; font-size: 10px; color: #e8eaed; margin-left: 2px; display: ${distLabel ? 'inline' : 'none'};">${distLabel}</span>
-            </div>
-          </div>
-        `;
-      }
-
-      // Grab reference to distance label inside innerHTML for fast updates
-      const label = el.querySelector(`#building-dist-${b.id}`) as HTMLDivElement;
-      markerDistanceLabelRef.current[b.id] = label;
-
-      // Hover effects
-      const pillDiv = el.firstElementChild as HTMLElement;
-      if (!isSelected && pillDiv) {
-        pillDiv.addEventListener('mouseenter', () => { pillDiv.style.transform = 'scale(1.1)'; });
-        pillDiv.addEventListener('mouseleave', () => { pillDiv.style.transform = 'scale(1)'; });
-      }
+        </div>
+      `;
 
       el.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -373,34 +353,7 @@ const CampusMap = ({
     if (selectedBuilding && map) {
       map.flyTo({ center: [selectedBuilding.lng, selectedBuilding.lat], zoom: 18, duration: 600 });
     }
-  }, [buildingsList, activeFilter, selectedBuilding, onSelectBuilding, userLocation, categoryLucideSvgs]);
-
-  // ── Update marker distance labels without recreating markers ──
-  useEffect(() => {
-    if (!buildingsList.length) return;
-
-    if (!userLocation) {
-      Object.values(markerDistanceLabelRef.current).forEach((label) => {
-        if (label) label.style.display = 'none';
-      });
-      return;
-    }
-
-    const now = Date.now();
-    if (now - lastDistanceLabelsUpdateRef.current < 1200) return;
-    lastDistanceLabelsUpdateRef.current = now;
-
-    buildingsList.forEach((b) => {
-      if (activeFilter && b.category !== activeFilter) return;
-
-      const label = markerDistanceLabelRef.current[b.id];
-      if (!label) return;
-
-      const meters = haversineMeters(userLocation[0], userLocation[1], b.lat, b.lng);
-      label.innerHTML = fmtDist(meters);
-      label.style.display = 'inline';
-    });
-  }, [userLocation, buildingsList, activeFilter]);
+  }, [buildingsList, activeFilter, selectedBuilding, navigatingTo, onCancelNavigation, onSelectBuilding, categoryReactIconSvgs, mapZoom]);
 
   // ── User location marker + accuracy + trail ──
   useEffect(() => {
@@ -512,7 +465,7 @@ const CampusMap = ({
       // Destination marker
       if (!destMarkerRef.current) {
         const el = document.createElement('div');
-        el.innerHTML = `<div style="width:16px;height:16px;background:#ef4444;border:3px solid rgba(10,12,20,0.8);border-radius:50%;box-shadow:0 0 12px rgba(239,68,68,0.6);"></div>`;
+        el.innerHTML = `<div style="width:30px;height:30px;background:#2563eb;border:3px solid #fff;border-radius:50%;box-shadow:0 8px 16px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;color:#fff;">${renderToStaticMarkup(<MdLocationOn size={16} />)}</div>`;
         destMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
           .setLngLat([navigatingTo.lng, navigatingTo.lat])
           .addTo(map);
@@ -613,7 +566,7 @@ const CampusMap = ({
         mapRef.current.fitBounds(bounds, { padding: 60, maxZoom: 17, pitch: 45, duration: 1500 }); 
       } catch { /* */ }
     }, 500);
-  }, [mapReady, campus, buildingsList.length]);
+  }, [mapReady, campus, buildingsList]);
 
   // ── Manual Show Campus Trigger ──
   useEffect(() => {
@@ -627,7 +580,7 @@ const CampusMap = ({
     try { 
       map.fitBounds(bounds, { padding: 60, maxZoom: 17, pitch: 45, duration: 1500 }); 
     } catch { /* */ }
-  }, [showCampusTrigger, mapReady, campus, buildingsList.length]);
+  }, [showCampusTrigger, mapReady, campus, buildingsList]);
 
   return (
     <div className="relative w-full h-full">
@@ -655,6 +608,8 @@ const CampusMap = ({
                 e.stopPropagation();
                 if(onCancelNavigation) onCancelNavigation();
               }} 
+              title="Cancel navigation"
+              aria-label="Cancel navigation"
               className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>

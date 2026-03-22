@@ -567,11 +567,12 @@ const Index = () => {
               <CampusMap
                 campus={selectedCampus}
                 selectedBuilding={selectedBuilding}
-                onSelectBuilding={setSelectedBuilding}
+                onSelectBuilding={handleSelectBuilding}
                 userLocation={userLocation}
                 userAccuracy={userAccuracy}
                 userHeading={userHeading}
                 navigatingTo={navigatingTo}
+                onCancelNavigation={() => setNavigatingTo(null)}
                 isAddingLocation={isAddingLocation}
                 onCenterChange={handleMapCenterChange}
                 activeLayer={activeLayer}
@@ -698,8 +699,8 @@ const Index = () => {
           )}
 
           {/* ─── Bottom-right: GPS above + button ─── */}
-          {!selectedBuilding && !navigatingTo && !showNavMenuFor && !isAddingLocation && (
-            <div className="absolute bottom-24 right-3 z-[400] flex flex-col gap-2 items-center">
+          <div className="absolute bottom-24 right-3 z-[400] flex flex-col gap-2 items-center">
+            {!selectedBuilding && !navigatingTo && !showNavMenuFor && !isAddingLocation && (
               <button
                 onClick={() => setShowCampusTrigger(v => v + 1)}
                 title="Show Full Campus"
@@ -707,20 +708,22 @@ const Index = () => {
               >
                 🎓
               </button>
-              <button
-                onClick={() => {
-                  if (!userLocation) {
-                    toast.info('Waiting for your GPS location...');
-                    return;
-                  }
-                  setIsFollowing(true);
-                  setRecenterTrigger((v) => v + 1);
-                }}
-                title="Center on my location"
-                className={`w-10 h-10 bg-card/90  border border-border/50 rounded-full flex items-center justify-center shadow-lg ${isFollowing ? 'ring-2 ring-primary' : ''}`}
-              >
-                <Crosshair className="w-4 h-4 text-foreground" />
-              </button>
+            )}
+            <button
+              onClick={() => {
+                if (!userLocation) {
+                  toast.info('Waiting for your GPS location...');
+                  return;
+                }
+                setIsFollowing(true);
+                setRecenterTrigger((v) => v + 1);
+              }}
+              title="Center on my location"
+              className={`w-10 h-10 bg-card/90  border border-border/50 rounded-full flex items-center justify-center shadow-lg ${isFollowing ? 'ring-2 ring-primary' : ''}`}
+            >
+              <Crosshair className="w-4 h-4 text-foreground" />
+            </button>
+            {!selectedBuilding && !navigatingTo && !showNavMenuFor && !isAddingLocation && (
               <button
                 onClick={() => setIsAddingLocation(true)}
                 title="Add location"
@@ -728,8 +731,8 @@ const Index = () => {
               >
                 <Plus className="w-5 h-5" />
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Add Mode */}
           {isAddingLocation && (
@@ -760,6 +763,8 @@ const Index = () => {
             onNavigate={handleNavigate}
             userLocation={userLocation}
             onEdit={handleEditBuilding}
+            navigatingTo={navigatingTo}
+            onCancelNavigation={() => setNavigatingTo(null)}
           />
 
           {/* Navigation options sheet */}
