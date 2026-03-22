@@ -13,6 +13,13 @@ export const authenticateLocalAdmin = (identifier: string, password: string) => 
   return true;
 };
 
+export const authenticateLocalAdminDirect = () => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(LOCAL_ADMIN_KEY, '1');
+  }
+  return true;
+};
+
 export const isLocalAdminAuthenticated = () => {
   if (typeof window === 'undefined') return false;
   return window.localStorage.getItem(LOCAL_ADMIN_KEY) === '1';

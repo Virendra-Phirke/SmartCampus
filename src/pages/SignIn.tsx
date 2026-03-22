@@ -3,7 +3,7 @@ import { useSignIn } from "@clerk/clerk-react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, ArrowRight, Loader2, AlertCircle, Eye, EyeOff, User, KeyRound } from "lucide-react";
-import { authenticateLocalAdmin } from '@/lib/adminAuth';
+import { authenticateLocalAdmin, authenticateLocalAdminDirect } from '@/lib/adminAuth';
 
 type AuthMode = 'email' | 'username' | 'otp';
 
@@ -139,12 +139,8 @@ export default function SignInPage() {
     ];
 
     const useAdminLogin = () => {
-        setMode('username');
-        setIdentifier('ADMIN88');
-        setPassword('Admin@#88');
-        setOtpCode('');
-        setOtpSent(false);
-        setError('');
+        authenticateLocalAdminDirect();
+        navigate('/?tab=admin', { replace: true });
     };
 
     return (
