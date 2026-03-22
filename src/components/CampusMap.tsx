@@ -17,6 +17,7 @@ interface CampusMapProps {
   userAccuracy?: number | null;
   userHeading?: number | null;
   navigatingTo?: CampusBuilding | null;
+  navigationMode?: 'car' | 'bike' | 'bus' | 'walk';
   onCancelNavigation?: () => void;
   isAddingLocation?: boolean;
   onCenterChange?: (center: [number, number]) => void;
@@ -65,7 +66,23 @@ const STYLE_URLS: Record<string, string | maplibregl.StyleSpecification> = {
 
 const fmtDist = (m: number) => (m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`);
 const estimateSteps = (m: number) => Math.round(m / 0.7);
-const walkingETA = (m: number) => { const min = Math.ceil(m / 80); return min < 60 ? `${min} min` : `${Math.floor(min / 60)}h ${min % 60}m`; };
+const modeSpeedMps: Record<'car' | 'bike' | 'bus' | 'walk', number> = {
+  car: 8.33,
+  bike: 4.16,
+  bus: 5.55,
+  walk: 1.33,
+};
+const modeRouteProfile: Record<'car' | 'bike' | 'bus' | 'walk', 'driving' | 'cycling' | 'walking'> = {
+  car: 'driving',
+  bus: 'driving',
+  bike: 'cycling',
+  walk: 'walking',
+};
+const etaByMode = (m: number, mode: 'car' | 'bike' | 'bus' | 'walk') => {
+  const speed = modeSpeedMps[mode] || modeSpeedMps.walk;
+  const min = Math.max(1, Math.ceil(m / speed / 60));
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)}h ${min % 60}m`;
+};
 const MARKER_VISIBILITY_ZOOM_THRESHOLD = 15;
 const haversineMeters = (lat1: number, lng1: number, lat2: number, lng2: number) => {
   const R = 6371000;
@@ -81,7 +98,7 @@ const haversineMeters = (lat1: number, lng1: number, lat2: number, lng2: number)
 
 const CampusMap = ({
   campus, selectedBuilding, onSelectBuilding, userLocation, userAccuracy,
-  userHeading, navigatingTo, onCancelNavigation, isAddingLocation = false, onCenterChange,
+  userHeading, navigatingTo, navigationMode = 'walk', onCancelNavigation, isAddingLocation = false, onCenterChange,
   activeFilter, isFollowing, activeLayer = 'dark',
   showHeatMap = false, measureMode = false, onMeasureDistance, recenterTrigger = 0, showCampusTrigger = 0,
 }: CampusMapProps) => {
@@ -96,7 +113,11 @@ const CampusMap = ({
   const measurePointsRef = useRef<maplibregl.LngLat[]>([]);
   const measureMarkersRef = useRef<maplibregl.Marker[]>([]);
   const arrivedRef = useRef(false);
+  const routeFramedForDestRef = useRef<string | null>(null);
   const lastFollowCameraUpdateRef = useRef(0);
+  const lastRecenterTriggerRef = useRef(recenterTrigger);
+  const styleCacheRef = useRef<Record<string, maplibregl.StyleSpecification>>({});
+  const didPreloadStylesRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapZoom, setMapZoom] = useState(campus.zoom);
 
@@ -111,6 +132,30 @@ const CampusMap = ({
     if (!navigatingTo || !userLocation) return null;
     return haversineMeters(userLocation[0], userLocation[1], navigatingTo.lat, navigatingTo.lng);
   }, [navigatingTo, userLocation]);
+
+  // Preload styles once so first light/dark switch feels instant
+  useEffect(() => {
+    if (didPreloadStylesRef.current) return;
+    didPreloadStylesRef.current = true;
+
+    const controller = new AbortController();
+    const preload = async (key: string, url: string) => {
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) return;
+        const json = await res.json();
+        styleCacheRef.current[key] = json as maplibregl.StyleSpecification;
+      } catch {
+        // ignore preload failures; map will fallback to URL style
+      }
+    };
+
+    preload('dark', STYLE_URLS.dark as string);
+    preload('street', STYLE_URLS.street as string);
+    preload('outdoor', STYLE_URLS.outdoor as string);
+
+    return () => controller.abort();
+  }, []);
 
   // ── Helper: add custom layers after style loads ──
   const addCustomLayers = useCallback((map: maplibregl.Map) => {
@@ -157,7 +202,7 @@ const CampusMap = ({
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: STYLE_URLS[activeLayer] || STYLE_URLS.dark,
+      style: styleCacheRef.current[activeLayer] || STYLE_URLS[activeLayer] || STYLE_URLS.dark,
       center: [campus.lng, campus.lat],
       zoom: campus.zoom,
       pitch: 45,
@@ -166,13 +211,7 @@ const CampusMap = ({
     });
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showCompass: true }), 'top-right');
-    map.addControl(new maplibregl.GeolocateControl({
-      positionOptions: { enableHighAccuracy: true },
-      trackUserLocation: true,
-      showUserHeading: true
-    }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'top-left');
-    map.addControl(new maplibregl.FullscreenControl(), 'top-right');
 
     // Track center for "Add Location"
     if (onCenterChange) {
@@ -189,8 +228,7 @@ const CampusMap = ({
 
     map.on('style.load', () => {
       addCustomLayers(map);
-      setMapReady(false);
-      setTimeout(() => setMapReady(true), 100);
+      setMapReady(true);
     });
 
     map.on('load', () => {
@@ -212,7 +250,7 @@ const CampusMap = ({
     const map = mapRef.current;
     if (!map || activeLayer === prevLayerRef.current) return;
     prevLayerRef.current = activeLayer;
-    map.setStyle(STYLE_URLS[activeLayer] || STYLE_URLS.dark);
+    map.setStyle(styleCacheRef.current[activeLayer] || STYLE_URLS[activeLayer] || STYLE_URLS.dark);
   }, [activeLayer]);
 
   // ── Draw College Campus Marker ──
@@ -401,9 +439,20 @@ const CampusMap = ({
       // Follow mode
       if (isFollowing) {
         const ts = performance.now();
-        if (ts - lastFollowCameraUpdateRef.current > 350) {
+        const center = map.getCenter();
+        const distToCenter = haversineMeters(center.lat, center.lng, lat, lng);
+
+        if (distToCenter < 2) return;
+
+        if (ts - lastFollowCameraUpdateRef.current > 500) {
           lastFollowCameraUpdateRef.current = ts;
-          map.easeTo({ center: [lng, lat], bearing: userHeading || map.getBearing(), duration: 350 });
+          map.easeTo({
+            center: [lng, lat],
+            bearing: userHeading ?? map.getBearing(),
+            duration: 650,
+            easing: (t) => 1 - Math.pow(1 - t, 2),
+            essential: true,
+          });
         }
       }
     }
@@ -413,8 +462,18 @@ const CampusMap = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !userLocation) return;
+
+    if (recenterTrigger === lastRecenterTriggerRef.current) return;
+    lastRecenterTriggerRef.current = recenterTrigger;
+
     const [lat, lng] = userLocation;
-    map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 16), duration: 700 });
+    map.easeTo({
+      center: [lng, lat],
+      zoom: Math.max(map.getZoom(), 16),
+      duration: 900,
+      easing: (t) => 1 - Math.pow(1 - t, 2),
+      essential: true,
+    });
   }, [recenterTrigger, mapReady, userLocation]);
 
   // ── Navigation route ──
@@ -442,8 +501,9 @@ const CampusMap = ({
         });
       }
 
-      // Fetch proper road route via OSRM (using driving profile for proper road networks like Google Maps)
-      fetch(`https://router.project-osrm.org/route/v1/driving/${uLng},${uLat};${navigatingTo.lng},${navigatingTo.lat}?overview=full&geometries=geojson`)
+      // Fetch proper road route via OSRM using selected navigation mode
+      const routeProfile = modeRouteProfile[navigationMode] || 'walking';
+      fetch(`https://router.project-osrm.org/route/v1/${routeProfile}/${uLng},${uLat};${navigatingTo.lng},${navigatingTo.lat}?overview=full&geometries=geojson`)
         .then(res => res.json())
         .then(data => {
           if (data.routes && data.routes.length > 0) {
@@ -454,10 +514,13 @@ const CampusMap = ({
               });
             }
             
-            // Auto fit bounds so the new path is nicely visible
-            const bounds = new maplibregl.LngLatBounds();
-            coords.forEach((c: [number, number]) => bounds.extend(c));
-            map.fitBounds(bounds, { padding: 90, maxZoom: 18, duration: 1500 });
+            // Auto fit once per destination so camera stays stable during live updates
+            if (routeFramedForDestRef.current !== navigatingTo.id) {
+              routeFramedForDestRef.current = navigatingTo.id;
+              const bounds = new maplibregl.LngLatBounds();
+              coords.forEach((c: [number, number]) => bounds.extend(c));
+              map.fitBounds(bounds, { padding: 90, maxZoom: 18, duration: 1200 });
+            }
           }
         })
         .catch(() => {});
@@ -479,8 +542,9 @@ const CampusMap = ({
       }
       if (destMarkerRef.current) { destMarkerRef.current.remove(); destMarkerRef.current = null; }
       arrivedRef.current = false;
+      routeFramedForDestRef.current = null;
     }
-  }, [navigatingTo, userLocation, mapReady]);
+  }, [navigatingTo, userLocation, mapReady, navigationMode]);
 
   // ── Heatmap ──
   useEffect(() => {
@@ -588,7 +652,7 @@ const CampusMap = ({
 
       {/* Navigation active banner */}
       {navigatingTo && userLocation && (
-        <div className="absolute top-[max(env(safe-area-inset-top),8px)] left-1/2 transform -translate-x-1/2 z-[400] w-[90%] max-w-sm">
+        <div className="absolute top-28 sm:top-[max(env(safe-area-inset-top),8px)] left-3 right-16 sm:left-1/2 sm:right-auto sm:w-[90%] sm:max-w-sm sm:transform sm:-translate-x-1/2 z-[400]">
           <div className="bg-card/95 backdrop-blur-sm text-foreground px-4 py-3 rounded-2xl shadow-xl border border-border flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
@@ -597,7 +661,7 @@ const CampusMap = ({
               <div className="flex flex-col">
                 <span className="text-sm font-bold">{navigatingTo.shortName}</span>
                 <span className="text-xs text-muted-foreground font-medium">
-                  {navDistanceMeters != null ? <span className="text-blue-500">{walkingETA(navDistanceMeters)}</span> : 'Calculating...'}
+                  {navDistanceMeters != null ? <span className="text-blue-500">{etaByMode(navDistanceMeters, navigationMode)}</span> : 'Calculating...'}
                   {navDistanceMeters != null && ` · ${fmtDist(navDistanceMeters)}`}
                 </span>
               </div>

@@ -211,6 +211,11 @@
   right: 10px !important;
 }
 
+.campus-map-shell .maplibregl-ctrl-top-left {
+  top: max(env(safe-area-inset-top), 88px) !important;
+  left: 10px !important;
+}
+
 .campus-selection-map-shell .maplibregl-ctrl-top-right {
   top: max(env(safe-area-inset-top), 64px) !important;
   right: 10px !important;
@@ -218,7 +223,11 @@
 
 @media (max-width: 640px) {
   .campus-map-shell .maplibregl-ctrl-top-right {
-    top: max(env(safe-area-inset-top), 96px) !important;
+    top: max(env(safe-area-inset-top), 124px) !important;
+  }
+
+  .campus-map-shell .maplibregl-ctrl-top-left {
+    top: max(env(safe-area-inset-top), 124px) !important;
   }
 
   .campus-selection-map-shell .maplibregl-ctrl-top-right {
@@ -255,8 +264,12 @@
 }
 
 /* ─── QR scanner overrides ──── */
+[id^="qr-reader-"] video,
 #qr-reader video {
-  border-radius: 12px !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 0 !important;
 }
 
 #qr-reader {

@@ -64,6 +64,7 @@ const Index = () => {
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<CampusBuilding | null>(null);
+  const [navigationMode, setNavigationMode] = useState<'car' | 'bike' | 'bus' | 'walk'>('walk');
 
   const { data: supabaseBuildings } = useBuildings();
   const buildingsList = useMemo(() => {
@@ -572,6 +573,7 @@ const Index = () => {
                 userAccuracy={userAccuracy}
                 userHeading={userHeading}
                 navigatingTo={navigatingTo}
+                navigationMode={navigationMode}
                 onCancelNavigation={() => setNavigatingTo(null)}
                 isAddingLocation={isAddingLocation}
                 onCenterChange={handleMapCenterChange}
@@ -774,6 +776,7 @@ const Index = () => {
               userLocation={userLocation}
               onClose={() => setShowNavMenuFor(null)}
               onStartNavigation={(mode) => {
+                setNavigationMode((mode as 'car' | 'bike' | 'bus' | 'walk') || 'walk');
                 setNavigatingTo(showNavMenuFor);
                 setShowNavMenuFor(null);
               }}
