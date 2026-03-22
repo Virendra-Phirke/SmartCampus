@@ -4,7 +4,7 @@ import { useUser, useClerk } from '@clerk/clerk-react';
 import {
     User, Mail, LogOut, MapPin, CheckCircle, Calendar, TrendingUp,
     Shield, GraduationCap, Clock, ChevronRight, Settings, BookOpen, Users,
-    Pencil, Save, X, Phone, Home, Briefcase, Camera
+    Pencil, Save, X, Phone, Home, Briefcase, Camera, Moon, Sun
 } from 'lucide-react';
 import { useAttendance } from '@/hooks/useAttendance';
 import {
@@ -12,15 +12,16 @@ import {
 } from 'recharts';
 import { format, subDays, startOfDay, isSameDay } from 'date-fns';
 import { useProfile } from '@/hooks/useProfile';
-import ProfileForm from '@/components/ProfileForm';
 import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
 import { toast } from 'sonner';
+import { useTheme } from '@/components/ThemeProvider';
 
 const Profile = () => {
     const { user } = useUser();
     const { signOut } = useClerk();
     const { records, todayCount, weekCount, totalCount } = useAttendance();
     const { profile, isLoading, upsertProfile } = useProfile();
+    const { theme, setTheme } = useTheme();
 
     // Edit mode state
     const [editing, setEditing] = useState(false);
@@ -129,10 +130,10 @@ const Profile = () => {
                 )}
             </motion.div>
 
-            {/* Onboarding State */}
-            {!isLoading && !profile?.full_name && !editing ? (
+            {/* Onboarding State: Now handled at the app level, so we just show profile if loaded */}
+            {!isLoading && !profile ? (
                 <div className="flex-1 flex items-center justify-center py-4">
-                    <ProfileForm onComplete={() => { }} initialData={profile} />
+                    <p className="text-muted-foreground text-sm">Please complete your setup on the map page first.</p>
                 </div>
             ) : (
                 <>
@@ -171,7 +172,7 @@ const Profile = () => {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h2 className="text-lg font-heading font-bold text-foreground truncate">
-                                    {profile?.full_name || 'Loading...'}
+                                    {profile?.full_name || profile?.display_name || user?.firstName || 'Explorer'}
                                 </h2>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                     <Mail className="w-3 h-3 text-muted-foreground" />
@@ -551,13 +552,29 @@ const Profile = () => {
                         </motion.div>
                     )}
 
-                    {/* Quick Links */}
+                    {/* Quick Links + Theme Toggle */}
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.25 }}
                         className="space-y-2 mb-5"
                     >
+                        <button
+                            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                            className="w-full flex items-center gap-3 p-3 bg-card rounded-xl border border-border/40 hover:border-border/60 transition-colors text-left"
+                        >
+                            <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center">
+                                {theme === 'dark' ? <Moon className="w-4 h-4 text-foreground" /> : <Sun className="w-4 h-4 text-foreground" />}
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-sm font-medium text-foreground">Theme</p>
+                                <p className="text-[10px] text-muted-foreground capitalize">{theme} Mode</p>
+                            </div>
+                            <div className={`w-10 h-6 rounded-full p-1 transition-colors ${theme === 'dark' ? 'bg-primary' : 'bg-muted'}`}>
+                                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${theme === 'dark' ? 'translate-x-4' : 'translate-x-0'}`} />
+                            </div>
+                        </button>
+
                         {[
                             { icon: BookOpen, label: 'Campus Directory', desc: 'Browse all locations' },
                             { icon: Settings, label: 'Preferences', desc: 'Notification & accessibility settings' },

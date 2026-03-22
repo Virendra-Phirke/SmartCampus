@@ -9,6 +9,9 @@ import { useAnnouncements } from '@/hooks/useAnnouncements';
 import { format, formatDistanceToNow } from 'date-fns';
 import type { Event, Announcement } from '@/lib/types';
 import { EventForm } from '@/components/EventForm';
+import { useUser } from '@clerk/clerk-react';
+import { useDeleteEvent, useDeleteAnnouncement } from '@/hooks/useAddEvent';
+import { Trash2, Pencil } from 'lucide-react';
 
 const eventCategoryConfig: Record<string, { icon: any; color: string; label: string }> = {
     academic: { icon: GraduationCap, color: 'text-blue-400 bg-blue-400/15', label: 'Academic' },
@@ -26,13 +29,15 @@ const priorityConfig: Record<string, { color: string; icon: any }> = {
     low: { color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', icon: Bell },
 };
 
-const EventCard = ({ event }: { event: Event }) => {
+const EventCard = ({ event, onEdit, currentUserId }: { event: Event, onEdit: (e: Event) => void, currentUserId?: string }) => {
     const [expanded, setExpanded] = useState(false);
+    const deleteEvent = useDeleteEvent();
     const cfg = eventCategoryConfig[event.category] || eventCategoryConfig.other;
     const Icon = cfg.icon;
     const startDate = new Date(event.start_time);
     const endDate = new Date(event.end_time);
     const isUpcoming = startDate > new Date();
+    const isOwner = event.created_by && event.created_by === currentUserId;
 
     return (
         <motion.div
@@ -75,6 +80,26 @@ const EventCard = ({ event }: { event: Event }) => {
                         </div>
                     </div>
                 </div>
+
+                {/* Always visible Edit/Delete buttons for owners */}
+                {isOwner && (
+                    <div className="flex gap-2 justify-end mt-2 pt-3 border-t border-border/20">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onEdit(event); }}
+                            className="p-1.5 rounded-md hover:bg-secondary text-foreground transition-colors"
+                            title="Edit Event"
+                        >
+                            <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); if (confirm('Delete this event?')) deleteEvent.mutate(event.id); }}
+                            className="p-1.5 rounded-md hover:bg-red-500/10 text-red-500 transition-colors"
+                            title="Delete Event"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                )}
             </div>
 
             <AnimatePresence>
@@ -101,21 +126,42 @@ const EventCard = ({ event }: { event: Event }) => {
     );
 };
 
-const AnnouncementBanner = ({ announcement }: { announcement: Announcement }) => {
+const AnnouncementBanner = ({ announcement, onEdit, currentUserId }: { announcement: Announcement, onEdit: (a: Announcement) => void, currentUserId?: string }) => {
     const pcfg = priorityConfig[announcement.priority] || priorityConfig.low;
     const PIcon = pcfg.icon;
+    const deleteAnnouncement = useDeleteAnnouncement();
+    const isOwner = announcement.created_by && announcement.created_by === currentUserId;
 
     return (
         <motion.div
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`rounded-xl border p-3 flex items-start gap-3 ${pcfg.color}`}
+            className={`rounded-xl border p-3 flex flex-col gap-2 ${pcfg.color}`}
         >
-            <PIcon className="w-4 h-4 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold leading-tight">{announcement.title}</p>
-                <p className="text-[11px] opacity-80 mt-0.5 leading-snug">{announcement.body}</p>
+            <div className="flex items-start gap-3">
+                <PIcon className="w-4 h-4 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold leading-tight">{announcement.title}</p>
+                    <p className="text-[11px] opacity-80 mt-0.5 leading-snug">{announcement.body}</p>
+                </div>
             </div>
+            
+            {isOwner && (
+                <div className="flex gap-2 justify-end mt-1 pt-2 border-t border-current/10">
+                    <button
+                        onClick={() => onEdit(announcement)}
+                        className="p-1.5 rounded-md hover:bg-current/10 transition-colors"
+                    >
+                        <Pencil className="w-3 h-3" />
+                    </button>
+                    <button
+                        onClick={() => { if (confirm('Delete this alert?')) deleteAnnouncement.mutate(announcement.id); }}
+                        className="p-1.5 rounded-md hover:bg-current/10 transition-colors"
+                    >
+                        <Trash2 className="w-3 h-3" />
+                    </button>
+                </div>
+            )}
         </motion.div>
     );
 };
@@ -123,8 +169,10 @@ const AnnouncementBanner = ({ announcement }: { announcement: Announcement }) =>
 const categories = ['all', 'academic', 'cultural', 'sports', 'seminar', 'workshop'];
 
 const Events = () => {
+    const { user } = useUser();
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [showEventForm, setShowEventForm] = useState(false);
+    const [editingItem, setEditingItem] = useState<{data: any, isAnnouncement: boolean} | null>(null);
     const { events, isLoading } = useEvents(selectedCategory);
     const { announcements } = useAnnouncements();
 
@@ -153,7 +201,12 @@ const Events = () => {
                         Announcements
                     </h2>
                     {announcements.slice(0, 3).map((a) => (
-                        <AnnouncementBanner key={a.id} announcement={a} />
+                        <AnnouncementBanner 
+                            key={a.id} 
+                            announcement={a} 
+                            currentUserId={user?.id}
+                            onEdit={(ann) => setEditingItem({ data: ann, isAnnouncement: true })} 
+                        />
                     ))}
                 </motion.div>
             )}
@@ -200,7 +253,11 @@ const Events = () => {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: i * 0.04 }}
                         >
-                            <EventCard event={event} />
+                            <EventCard 
+                                event={event} 
+                                currentUserId={user?.id}
+                                onEdit={(evt) => setEditingItem({ data: evt, isAnnouncement: false })}
+                            />
                         </motion.div>
                     ))
                 )}
@@ -217,7 +274,16 @@ const Events = () => {
             </div>
 
             {/* Event Form Modal */}
-            {showEventForm && <EventForm onClose={() => setShowEventForm(false)} />}
+            {(showEventForm || editingItem) && (
+                <EventForm 
+                    onClose={() => {
+                        setShowEventForm(false);
+                        setEditingItem(null);
+                    }} 
+                    initialData={editingItem?.data}
+                    isAnnouncement={editingItem?.isAnnouncement}
+                />
+            )}
         </div>
     );
 };

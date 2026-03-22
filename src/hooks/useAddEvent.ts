@@ -22,6 +22,46 @@ export const useAddEvent = () => {
     });
 };
 
+export const useUpdateEvent = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, ...updates }: Partial<Event> & { id: string }) => {
+            const { data, error } = await supabase
+                .from('events')
+                .update(updates)
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['events'] });
+        },
+    });
+};
+
+export const useDeleteEvent = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase
+                .from('events')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            return true;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['events'] });
+        },
+    });
+};
+
 export const useAddAnnouncement = () => {
     const queryClient = useQueryClient();
 
@@ -35,6 +75,46 @@ export const useAddAnnouncement = () => {
 
             if (error) throw error;
             return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['announcements'] });
+        },
+    });
+};
+
+export const useUpdateAnnouncement = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, ...updates }: Partial<Announcement> & { id: string }) => {
+            const { data, error } = await supabase
+                .from('announcements')
+                .update(updates)
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['announcements'] });
+        },
+    });
+};
+
+export const useDeleteAnnouncement = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase
+                .from('announcements')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            return true;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['announcements'] });

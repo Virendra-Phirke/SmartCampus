@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle, Clock3, Mail, Phone, BookOpen, Hash, School, User, Users, MapPin, Home, CalendarDays } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock3, Mail, Phone, BookOpen, Hash, School, User, Users, MapPin, Home, CalendarDays, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { useUser } from '@clerk/clerk-react';
+import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useColleges } from '@/hooks/useColleges';
 
@@ -68,6 +69,45 @@ const QrSessionDetails = () => {
     return byDate;
   }, [records, filterDate, sortOrder]);
 
+  const handleDownloadCSV = () => {
+    if (filteredRecords.length === 0) {
+      toast.error('No records to download');
+      return;
+    }
+
+    const headers = ['Full Name', 'Roll No', 'Role', 'Course/Department', 'Year', 'Section', 'Email', 'Mobile', 'Checked In At'];
+    
+    const rows = filteredRecords.map((record: any) => {
+      const m = record.metadata || {};
+      return [
+        `"${m.full_name || m.name || ''}"`,
+        `"${m.roll_no || m.rollNo || ''}"`,
+        `"${m.role || ''}"`,
+        `"${m.course_or_department || m.branch || m.department || ''}"`,
+        `"${m.year || ''}"`,
+        `"${m.section || ''}"`,
+        `"${m.email || ''}"`,
+        `"${m.mobile_no || m.mobile || ''}"`,
+        `"${format(new Date(record.checked_in_at), 'yyyy-MM-dd HH:mm:ss')}"`
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    // Suggest a filename
+    const dateStr = filterDate || 'All_Dates';
+    link.href = url;
+    link.setAttribute('download', `Attendance_${session?.session_name || 'Session'}_${dateStr}.csv`.replace(/[^a-z0-9_.-]/gi, '_'));
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('Download started');
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -96,7 +136,7 @@ const QrSessionDetails = () => {
 
   return (
     <div className="min-h-screen bg-background pb-8">
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
+      <div className="sticky top-0 z-20 bg-background/95  border-b border-border">
         <div className="p-4 flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
@@ -154,6 +194,13 @@ const QrSessionDetails = () => {
                 title="Toggle sort order"
               >
                 {sortOrder === 'desc' ? 'Newest' : 'Oldest'}
+              </button>
+              <button
+                onClick={handleDownloadCSV}
+                className="h-8 px-2.5 rounded-lg bg-primary/10 text-primary border border-primary/20 text-[11px] font-bold flex items-center gap-1.5 hover:bg-primary/20 transition-colors"
+                title="Download CSV"
+              >
+                <Download className="w-3.5 h-3.5" /> Export
               </button>
             </div>
           </div>

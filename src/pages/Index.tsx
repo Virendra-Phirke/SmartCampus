@@ -3,6 +3,7 @@ import { useUser } from '@clerk/clerk-react';
 import SearchBar from '@/components/SearchBar';
 import BottomSheet from '@/components/BottomSheet';
 import BottomNav from '@/components/BottomNav';
+import NavigationSheet from '@/components/NavigationSheet';
 import type { CampusBuilding } from '@/data/campusData';
 import type { College } from '@/lib/types';
 import { MapPin, LogOut, Plus, X, Check, Crosshair, Ruler, Flame, Navigation2, ChevronDown, Layers } from 'lucide-react';
@@ -11,6 +12,7 @@ import { useColleges } from '@/hooks/useColleges';
 import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
+import { useTheme } from '@/components/ThemeProvider';
 
 const CampusMap = lazy(() => import('@/components/CampusMap'));
 const CampusSelectionMap = lazy(() => import('@/components/CampusSelectionMap'));
@@ -24,7 +26,7 @@ const LAYER_OPTIONS = [
   { key: 'dark', label: 'Dark', emoji: '🌑' },
   { key: 'street', label: 'Street', emoji: '🗺️' },
   { key: 'satellite', label: 'Satellite', emoji: '🛰️' },
-  { key: 'outdoor', label: 'Outdoor', emoji: '🌲' },
+  { key: 'outdoor', label: 'Light', emoji: '☀️' },
 ];
 
 const FILTER_OPTIONS = [
@@ -50,6 +52,7 @@ const SectionLoader = () => (
 const Index = () => {
   const location = useLocation();
   const { user } = useUser();
+  const { theme } = useTheme();
   const { profile, isLoading: profileLoading, upsertProfile } = useProfile();
   const { data: colleges } = useColleges();
   const [selectedCampus, setSelectedCampus] = useState<College | null>(null);
@@ -61,13 +64,25 @@ const Index = () => {
   const [navigatingTo, setNavigatingTo] = useState<CampusBuilding | null>(null);
 
   // Map feature states
-  const [activeLayer, setActiveLayer] = useState('dark');
+  const [activeLayer, setActiveLayer] = useState(() => {
+    if (typeof window === 'undefined') return 'dark';
+    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    return isDark ? 'dark' : 'outdoor';
+  });
+
+  useEffect(() => {
+    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    setActiveLayer(isDark ? 'dark' : 'outdoor');
+  }, [theme]);
+
   const [showLayerDropdown, setShowLayerDropdown] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showHeatMap, setShowHeatMap] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
   const [measuredDistance, setMeasuredDistance] = useState<number | null>(null);
   const [recenterTrigger, setRecenterTrigger] = useState(0);
+  const [showCampusTrigger, setShowCampusTrigger] = useState(0);
+  const [showNavMenuFor, setShowNavMenuFor] = useState<CampusBuilding | null>(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
@@ -120,18 +135,22 @@ const Index = () => {
   useEffect(() => {
     if (profileLoading) return;
 
-    if (!profile?.role) {
-      setOnboardingStep('role');
-      return;
-    }
-
+    // 1. Campus Selection is mandatory first
     if (!profile?.college_id) {
       setOnboardingStep('college');
       return;
     }
 
+    // 2. If college exists but full_name is missing, we need role + profile data
+    if (!profile?.full_name) {
+      // If we are already on 'profile' step, stay there, otherwise start at 'role'
+      setOnboardingStep(prev => (prev === 'profile' ? 'profile' : 'role'));
+      return;
+    }
+
+    // Fully onboarded
     setOnboardingStep('none');
-  }, [profileLoading, profile?.role, profile?.college_id]);
+  }, [profileLoading, profile?.college_id, profile?.full_name]);
 
   useEffect(() => {
     if (profile?.role === 'student' || profile?.role === 'faculty') {
@@ -253,13 +272,11 @@ const Index = () => {
     setManualSwitch(false);
     try {
       await upsertProfile.mutateAsync({ college_id: college.id });
-      if (onboardingStep === 'college') {
-        setOnboardingStep('profile');
-      }
+      // The useEffect will automatically advance to 'role' because full_name is still missing
     } catch {
       toast.error('Failed to save selected college');
     }
-  }, [upsertProfile, onboardingStep]);
+  }, [upsertProfile]);
 
   // ── Switch campus handler ──
   const handleSwitchCampus = () => {
@@ -272,7 +289,7 @@ const Index = () => {
   const handleRoleSave = async () => {
     try {
       await upsertProfile.mutateAsync({ role: selectedRole as any });
-      setOnboardingStep('college');
+      setOnboardingStep('profile');
     } catch {
       toast.error('Failed to save role');
     }
@@ -282,7 +299,7 @@ const Index = () => {
   const handleProfileSave = async () => {
     try {
       await upsertProfile.mutateAsync({
-        full_name: user?.fullName || onboardForm.full_name || profile?.full_name || null,
+        full_name: user?.fullName || user?.firstName || profile?.full_name || 'User',
         mobile_no: onboardForm.mobile_no,
         address: onboardForm.address,
         role_id: onboardForm.role_id,
@@ -320,7 +337,7 @@ const Index = () => {
   }, []);
 
   const handleNavigate = useCallback((building: CampusBuilding) => {
-    setNavigatingTo(building);
+    setShowNavMenuFor(building);
     setSelectedBuilding(null);
   }, []);
 
@@ -341,7 +358,7 @@ const Index = () => {
           <CampusSelectionMap onSelectCampus={handleSelectCampus} userLocation={userLocation} />
         </Suspense>
         <div className="absolute top-[max(env(safe-area-inset-top),10px)] left-1/2 -translate-x-1/2 z-[500]">
-          <div className="bg-card/90 backdrop-blur border border-border/50 rounded-full px-3 py-1.5 text-[11px] font-semibold">
+          <div className="bg-card/90  border border-border/50 rounded-full px-3 py-1.5 text-[11px] font-semibold">
             Select your college to continue
           </div>
         </div>
@@ -552,6 +569,7 @@ const Index = () => {
                 onMeasureDistance={handleMeasureDistance}
                 activeFilter={activeFilter === 'all' ? null : activeFilter}
                 recenterTrigger={recenterTrigger}
+                showCampusTrigger={showCampusTrigger}
               />
             </Suspense>
           </div>
@@ -593,13 +611,13 @@ const Index = () => {
                 <div className="relative">
                   <button
                     onClick={() => { setShowFilterDropdown(!showFilterDropdown); setShowLayerDropdown(false); }}
-                    className="flex items-center gap-1 bg-card/80 backdrop-blur border border-border/50 rounded-full px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm"
+                    className="flex items-center gap-1 bg-card/80  border border-border/50 rounded-full px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm"
                   >
                     {FILTER_OPTIONS.find(f => f.key === activeFilter)?.label || 'All'}
                     <ChevronDown className={`w-3 h-3 transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
                   </button>
                   {showFilterDropdown && (
-                    <div className="absolute top-full left-0 mt-1 bg-card/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-2xl p-1 z-50 min-w-[120px]">
+                    <div className="absolute top-full left-0 mt-1 bg-card/95  border border-border/50 rounded-xl shadow-2xl p-1 z-50 min-w-[120px]">
                       {FILTER_OPTIONS.map(f => (
                         <button key={f.key} onClick={() => { setActiveFilter(f.key); setShowFilterDropdown(false); }}
                           className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${activeFilter === f.key ? 'bg-primary/15 text-primary' : 'text-foreground hover:bg-muted'}`}
@@ -613,14 +631,14 @@ const Index = () => {
                 <div className="relative">
                   <button
                     onClick={() => { setShowLayerDropdown(!showLayerDropdown); setShowFilterDropdown(false); }}
-                    className="flex items-center gap-1 bg-card/80 backdrop-blur border border-border/50 rounded-full px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm"
+                    className="flex items-center gap-1 bg-card/80  border border-border/50 rounded-full px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm"
                   >
                     <Layers className="w-3 h-3" />
                     {LAYER_OPTIONS.find(l => l.key === activeLayer)?.emoji} {LAYER_OPTIONS.find(l => l.key === activeLayer)?.label}
                     <ChevronDown className={`w-3 h-3 transition-transform ${showLayerDropdown ? 'rotate-180' : ''}`} />
                   </button>
                   {showLayerDropdown && (
-                    <div className="absolute top-full left-0 mt-1 bg-card/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-2xl p-1 z-50 min-w-[130px]">
+                    <div className="absolute top-full left-0 mt-1 bg-card/95  border border-border/50 rounded-xl shadow-2xl p-1 z-50 min-w-[130px]">
                       {LAYER_OPTIONS.map(l => (
                         <button key={l.key} onClick={() => { setActiveLayer(l.key); setShowLayerDropdown(false); }}
                           className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all flex items-center gap-2 ${activeLayer === l.key ? 'bg-primary/15 text-primary' : 'text-foreground hover:bg-muted'}`}
@@ -657,7 +675,7 @@ const Index = () => {
           {/* ─── GPS Location Pill (bottom-left) ─── */}
           {userLocation && (
             <div className="absolute bottom-24 left-3 z-30 pointer-events-auto">
-              <div className="flex items-center gap-1.5 bg-card/90 backdrop-blur border border-border/50 rounded-full px-2.5 py-1 shadow-lg">
+              <div className="flex items-center gap-1.5 bg-card/90  border border-border/50 rounded-full px-2.5 py-1 shadow-lg">
                 <Navigation2 className="w-3 h-3 text-primary" />
                 <span className="text-[9px] font-mono text-foreground/80">
                   {userLocation[0].toFixed(4)}, {userLocation[1].toFixed(4)}
@@ -668,8 +686,15 @@ const Index = () => {
           )}
 
           {/* ─── Bottom-right: GPS above + button ─── */}
-          {!selectedBuilding && !navigatingTo && !isAddingLocation && (
+          {!selectedBuilding && !navigatingTo && !showNavMenuFor && !isAddingLocation && (
             <div className="absolute bottom-24 right-3 z-[400] flex flex-col gap-2 items-center">
+              <button
+                onClick={() => setShowCampusTrigger(v => v + 1)}
+                title="Show Full Campus"
+                className="w-10 h-10 bg-card/90 border border-border/50 rounded-full flex items-center justify-center shadow-lg"
+              >
+                🎓
+              </button>
               <button
                 onClick={() => {
                   if (!userLocation) {
@@ -680,7 +705,7 @@ const Index = () => {
                   setRecenterTrigger((v) => v + 1);
                 }}
                 title="Center on my location"
-                className={`w-10 h-10 bg-card/90 backdrop-blur border border-border/50 rounded-full flex items-center justify-center shadow-lg ${isFollowing ? 'ring-2 ring-primary' : ''}`}
+                className={`w-10 h-10 bg-card/90  border border-border/50 rounded-full flex items-center justify-center shadow-lg ${isFollowing ? 'ring-2 ring-primary' : ''}`}
               >
                 <Crosshair className="w-4 h-4 text-foreground" />
               </button>
@@ -714,6 +739,19 @@ const Index = () => {
             userLocation={userLocation}
             onEdit={handleEditBuilding}
           />
+
+          {/* Navigation options sheet */}
+          {showNavMenuFor && (
+            <NavigationSheet
+              building={showNavMenuFor}
+              userLocation={userLocation}
+              onClose={() => setShowNavMenuFor(null)}
+              onStartNavigation={(mode) => {
+                setNavigatingTo(showNavMenuFor);
+                setShowNavMenuFor(null);
+              }}
+            />
+          )}
 
           {showBuildingForm && (
             <Suspense fallback={<SectionLoader />}>

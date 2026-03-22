@@ -19,7 +19,7 @@ const QuickAccess = ({ onSelect }: QuickAccessProps) => {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: i * 0.04 }}
           onClick={() => onSelect(b)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/80 backdrop-blur-sm border border-border/30 shrink-0 text-xs font-medium text-secondary-foreground active:scale-95 transition-transform"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/80  border border-border/30 shrink-0 text-xs font-medium text-secondary-foreground active:scale-95 transition-transform"
         >
           <span className="text-sm">{categoryIcons[b.category]}</span>
           <span className="whitespace-nowrap">{b.shortName}</span>

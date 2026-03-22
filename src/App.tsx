@@ -7,6 +7,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import { Navigate } from "react-router-dom";
 import { AppDialogProvider } from "@/components/AppDialogProvider";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { useGlobalNotifications } from "@/hooks/useGlobalNotifications";
+
+const GlobalNotifier = () => {
+  useGlobalNotifications();
+  return null;
+};
 
 const Index = lazy(() => import("./pages/Index"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -32,55 +39,58 @@ const AppLoading = () => (
 );
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AppDialogProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Suspense fallback={<AppLoading />}>
-            <Routes>
-              {/* Public auth routes */}
-              <Route path="/sign-in/*" element={<SignInPage />} />
-              <Route path="/sign-up/*" element={<SignUpPage />} />
+  <ThemeProvider defaultTheme="system">
+    <QueryClientProvider client={queryClient}>
+      <GlobalNotifier />
+      <TooltipProvider>
+        <AppDialogProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Suspense fallback={<AppLoading />}>
+              <Routes>
+                {/* Public auth routes */}
+                <Route path="/sign-in/*" element={<SignInPage />} />
+                <Route path="/sign-up/*" element={<SignUpPage />} />
 
-              {/* Protected routes */}
-              <Route
-                path="/"
-                element={
-                  <>
-                    <SignedIn>
-                      <Index />
-                    </SignedIn>
-                    <SignedOut>
-                      <Navigate to="/sign-in" replace />
-                    </SignedOut>
-                  </>
-                }
-              />
+                {/* Protected routes */}
+                <Route
+                  path="/"
+                  element={
+                    <>
+                      <SignedIn>
+                        <Index />
+                      </SignedIn>
+                      <SignedOut>
+                        <Navigate to="/sign-in" replace />
+                      </SignedOut>
+                    </>
+                  }
+                />
 
-              <Route
-                path="/attendance/session/:sessionId"
-                element={
-                  <>
-                    <SignedIn>
-                      <QrSessionDetails />
-                    </SignedIn>
-                    <SignedOut>
-                      <Navigate to="/sign-in" replace />
-                    </SignedOut>
-                  </>
-                }
-              />
+                <Route
+                  path="/attendance/session/:sessionId"
+                  element={
+                    <>
+                      <SignedIn>
+                        <QrSessionDetails />
+                      </SignedIn>
+                      <SignedOut>
+                        <Navigate to="/sign-in" replace />
+                      </SignedOut>
+                    </>
+                  }
+                />
 
-              {/* Catch-all */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </AppDialogProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+                {/* Catch-all */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </AppDialogProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

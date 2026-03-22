@@ -69,7 +69,7 @@ const QRScanner = ({ onScan, onClose }: QRScannerProps) => {
             <button
                 onClick={onClose}
                 title="Close scanner"
-                className="absolute top-3 right-3 z-10 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background transition-colors"
+                className="absolute top-3 right-3 z-10 p-2 rounded-full bg-background/80  hover:bg-background transition-colors"
             >
                 <X className="w-4 h-4 text-foreground" />
             </button>

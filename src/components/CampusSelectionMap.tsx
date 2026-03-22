@@ -216,7 +216,7 @@ const CampusSelectionMap = ({ onSelectCampus, userLocation }: CampusSelectionMap
             {/* ═══ Top-left: small search icon OR expanded search ═══ */}
             <div className="absolute top-[max(env(safe-area-inset-top),12px)] left-3 z-[400]">
                 {showSearch ? (
-                    <div className="glass-strong rounded-2xl shadow-xl border border-border/50 backdrop-blur-md w-[calc(100vw-24px)] max-w-sm animate-in fade-in zoom-in-95 duration-150">
+                    <div className="glass-strong rounded-2xl shadow-xl border border-border/50  w-[calc(100vw-24px)] max-w-sm animate-in fade-in zoom-in-95 duration-150">
                         <div className="flex items-center gap-2 p-2.5">
                             <Search className="w-4 h-4 text-muted-foreground shrink-0 ml-1" />
                             <input
@@ -283,7 +283,7 @@ const CampusSelectionMap = ({ onSelectCampus, userLocation }: CampusSelectionMap
             {pendingCollege && (
                 <div className="absolute bottom-0 left-0 right-0 z-[500] safe-bottom animate-in slide-in-from-bottom-8 duration-300">
                     <div className="mx-3 mb-3">
-                        <div className="bg-card/98 backdrop-blur-2xl border border-border/50 rounded-2xl shadow-2xl overflow-hidden">
+                        <div className="bg-card/98  border border-border/50 rounded-2xl shadow-2xl overflow-hidden">
                             <div className="p-4 pb-3">
                                 <div className="flex items-start gap-3">
                                     <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0 border border-primary/20">

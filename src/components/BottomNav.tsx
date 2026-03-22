@@ -18,7 +18,7 @@ const BottomNav = ({ active, onNavigate, isAdmin = false }: BottomNavProps) => {
   const visibleTabs = tabs.filter(tab => tab.id !== 'admin' || isAdmin);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-[999] bg-background/95 backdrop-blur-xl border-t border-border/40 safe-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-[999] bg-background/95  border-t border-border/40 safe-bottom">
       <div className="flex items-center justify-around px-2 py-1">
         {visibleTabs.map((tab) => {
           const isActive = active === tab.id;

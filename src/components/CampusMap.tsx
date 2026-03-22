@@ -24,6 +24,7 @@ interface CampusMapProps {
   measureMode?: boolean;
   onMeasureDistance?: (d: number) => void;
   recenterTrigger?: number;
+  showCampusTrigger?: number;
 }
 
 const categoryIconEmojis: Record<string, string> = {
@@ -80,7 +81,7 @@ const CampusMap = ({
   campus, selectedBuilding, onSelectBuilding, userLocation, userAccuracy,
   userHeading, navigatingTo, isAddingLocation = false, onCenterChange,
   activeFilter, isFollowing, activeLayer = 'dark',
-  showHeatMap = false, measureMode = false, onMeasureDistance, recenterTrigger = 0,
+  showHeatMap = false, measureMode = false, onMeasureDistance, recenterTrigger = 0, showCampusTrigger = 0,
 }: CampusMapProps) => {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -581,6 +582,20 @@ const CampusMap = ({
     }, 500);
   }, [mapReady, campus, buildingsList.length]);
 
+  // ── Manual Show Campus Trigger ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !campus || showCampusTrigger === 0) return;
+
+    const bounds = new maplibregl.LngLatBounds();
+    bounds.extend([campus.lng, campus.lat]);
+    buildingsList.forEach(b => bounds.extend([b.lng, b.lat]));
+    
+    try { 
+      map.fitBounds(bounds, { padding: 60, maxZoom: 17, pitch: 45, duration: 1500 }); 
+    } catch { /* */ }
+  }, [showCampusTrigger, mapReady, campus, buildingsList.length]);
+
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full campus-map-shell" />
@@ -588,7 +603,7 @@ const CampusMap = ({
       {/* Navigation active banner */}
       {navigatingTo && userLocation && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-[400]">
-          <div className="bg-primary/90 backdrop-blur-xl text-primary-foreground px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-2 shadow-lg shadow-primary/20 border border-primary/30">
+          <div className="bg-primary/90  text-primary-foreground px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-2 shadow-lg shadow-primary/20 border border-primary/30">
             <div className="w-2 h-2 bg-primary-foreground rounded-full animate-pulse" />
             {navDistanceMeters != null
               ? `${navigatingTo.shortName} · ${fmtDist(navDistanceMeters)} · ${walkingETA(navDistanceMeters)}`

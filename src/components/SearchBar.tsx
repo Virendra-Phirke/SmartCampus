@@ -65,7 +65,7 @@ const SearchBar = ({ onSelect }: SearchBarProps) => {
             exit={{ opacity: 0, scale: 0.8 }}
             transition={{ duration: 0.15 }}
             onClick={handleExpand}
-            className="w-9 h-9 bg-secondary/90 backdrop-blur-lg rounded-xl flex items-center justify-center border border-border/40 shadow-lg shadow-black/20 hover:bg-secondary active:scale-95 transition-all"
+            className="w-9 h-9 bg-secondary/90  rounded-xl flex items-center justify-center border border-border/40 shadow-lg shadow-black/20 hover:bg-secondary active:scale-95 transition-all"
           >
             <Search className="w-4 h-4 text-muted-foreground" />
           </motion.button>
@@ -77,7 +77,7 @@ const SearchBar = ({ onSelect }: SearchBarProps) => {
             animate={{ opacity: 1, width: '100%', scale: 1 }}
             exit={{ opacity: 0, width: 36, scale: 0.95 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="bg-secondary/90 backdrop-blur-lg rounded-2xl flex items-center gap-3 px-4 py-2.5 border border-border/40 shadow-lg shadow-black/20"
+            className="bg-secondary/90  rounded-2xl flex items-center gap-3 px-4 py-2.5 border border-border/40 shadow-lg shadow-black/20"
           >
             <Search className="w-4 h-4 text-muted-foreground shrink-0" />
             <input
@@ -104,7 +104,7 @@ const SearchBar = ({ onSelect }: SearchBarProps) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full mt-2 w-full bg-card/98 backdrop-blur-2xl rounded-2xl overflow-hidden shadow-2xl shadow-black/40 border border-border/50 z-50"
+            className="absolute top-full mt-2 w-full bg-card/98  rounded-2xl overflow-hidden shadow-2xl shadow-black/40 border border-border/50 z-50"
           >
             {results.length === 0 ? (
               <div className="px-4 py-6 text-center text-muted-foreground text-sm">

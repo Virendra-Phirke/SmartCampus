@@ -112,7 +112,7 @@ export default function QRGenerator({ onClose }: QRGeneratorProps) {
     }, [sessionName]);
 
     return (
-        <div className="fixed inset-0 z-[1000] bg-background/95 backdrop-blur flex flex-col items-center justify-center p-4">
+        <div className="fixed inset-0 z-[1000] bg-background/95  flex flex-col items-center justify-center p-4">
             <div className="absolute top-4 right-4 z-10">
                 <button onClick={onClose} title="Close QR generator" className="p-3 bg-secondary rounded-full hover:bg-secondary/80 transition-colors shadow-sm">
                     <X className="w-6 h-6" />

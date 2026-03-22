@@ -72,6 +72,7 @@ export interface Announcement {
     priority: 'low' | 'medium' | 'high' | 'urgent';
     created_at: string;
     expires_at: string | null;
+    created_by?: string | null;
 }
 
 export interface UserProfile {

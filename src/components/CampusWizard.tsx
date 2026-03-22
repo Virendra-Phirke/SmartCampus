@@ -83,7 +83,7 @@ export default function CampusWizard({ onClose, initialLocation }: CampusWizardP
     };
 
     return (
-        <div className="fixed inset-0 z-[1000] bg-background/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[1000] bg-background/90  flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-2xl h-[80vh] max-h-[800px] rounded-3xl shadow-2xl border border-border flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
 
                 {/* Header */}

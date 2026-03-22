@@ -70,7 +70,7 @@ export const BuildingForm = ({ initialLat, initialLng, existingBuilding, onClose
     };
 
     return (
-        <div className="fixed inset-0 z-[1000] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[1000] bg-background/80  flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border p-5 animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-heading font-bold text-foreground flex items-center gap-2">
