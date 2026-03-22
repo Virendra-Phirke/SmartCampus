@@ -11,6 +11,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { useGlobalNotifications } from "@/hooks/useGlobalNotifications";
 import NotificationEnforcer from "@/components/NotificationEnforcer";
 import { AuthProvider } from "@/components/AuthProvider";
+import { isLocalAdminAuthenticated } from "@/lib/adminAuth";
 
 const GlobalNotifier = () => {
   useGlobalNotifications();
@@ -22,6 +23,9 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const SignInPage = lazy(() => import("./pages/SignIn"));
 const SignUpPage = lazy(() => import("./pages/SignUp"));
 const QrSessionDetails = lazy(() => import("./pages/QrSessionDetails"));
+const AdminCampusWorkspace = lazy(() => import("./components/admin/AdminCampusWorkspace"));
+const AdminCampusData = lazy(() => import("./components/admin/AdminCampusData"));
+const AdminCampusPeople = lazy(() => import("./components/admin/AdminCampusPeople"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +56,9 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <Suspense fallback={<AppLoading />}>
+                {(() => {
+                  const localAdminAuthenticated = isLocalAdminAuthenticated();
+                  return (
                 <Routes>
                 {/* Public auth routes */}
                 <Route path="/sign-in/*" element={<SignInPage />} />
@@ -61,14 +68,18 @@ const App = () => (
                 <Route
                   path="/"
                   element={
-                    <>
-                      <SignedIn>
-                        <Index />
-                      </SignedIn>
-                      <SignedOut>
-                        <Navigate to="/sign-in" replace />
-                      </SignedOut>
-                    </>
+                    localAdminAuthenticated ? (
+                      <Index />
+                    ) : (
+                      <>
+                        <SignedIn>
+                          <Index />
+                        </SignedIn>
+                        <SignedOut>
+                          <Navigate to="/sign-in" replace />
+                        </SignedOut>
+                      </>
+                    )
                   }
                 />
 
@@ -86,9 +97,83 @@ const App = () => (
                   }
                 />
 
+                <Route
+                  path="/admin/campus/:campusId"
+                  element={
+                    localAdminAuthenticated ? (
+                      <AdminCampusWorkspace />
+                    ) : (
+                      <>
+                        <SignedIn>
+                          <AdminCampusWorkspace />
+                        </SignedIn>
+                        <SignedOut>
+                          <Navigate to="/sign-in" replace />
+                        </SignedOut>
+                      </>
+                    )
+                  }
+                />
+
+                <Route
+                  path="/admin/campus/:campusId/map"
+                  element={
+                    localAdminAuthenticated ? (
+                      <AdminCampusWorkspace />
+                    ) : (
+                      <>
+                        <SignedIn>
+                          <AdminCampusWorkspace />
+                        </SignedIn>
+                        <SignedOut>
+                          <Navigate to="/sign-in" replace />
+                        </SignedOut>
+                      </>
+                    )
+                  }
+                />
+
+                <Route
+                  path="/admin/campus/:campusId/data"
+                  element={
+                    localAdminAuthenticated ? (
+                      <AdminCampusData />
+                    ) : (
+                      <>
+                        <SignedIn>
+                          <AdminCampusData />
+                        </SignedIn>
+                        <SignedOut>
+                          <Navigate to="/sign-in" replace />
+                        </SignedOut>
+                      </>
+                    )
+                  }
+                />
+
+                <Route
+                  path="/admin/campus/:campusId/people"
+                  element={
+                    localAdminAuthenticated ? (
+                      <AdminCampusPeople />
+                    ) : (
+                      <>
+                        <SignedIn>
+                          <AdminCampusPeople />
+                        </SignedIn>
+                        <SignedOut>
+                          <Navigate to="/sign-in" replace />
+                        </SignedOut>
+                      </>
+                    )
+                  }
+                />
+
                 {/* Catch-all */}
                 <Route path="*" element={<NotFound />} />
                 </Routes>
+                  );
+                })()}
               </Suspense>
             </BrowserRouter>
           </AppDialogProvider>

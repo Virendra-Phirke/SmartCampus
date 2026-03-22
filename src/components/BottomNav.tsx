@@ -15,7 +15,9 @@ const tabs = [
 ];
 
 const BottomNav = ({ active, onNavigate, isAdmin = false }: BottomNavProps) => {
-  const visibleTabs = tabs.filter(tab => tab.id !== 'admin' || isAdmin);
+  const visibleTabs = isAdmin
+    ? tabs.filter(tab => tab.id === 'attendance' || tab.id === 'events' || tab.id === 'admin')
+    : tabs.filter(tab => tab.id !== 'admin');
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-[999] bg-background/95  border-t border-border/40 safe-bottom">

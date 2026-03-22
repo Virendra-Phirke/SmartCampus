@@ -12,6 +12,8 @@ interface BottomSheetProps {
   onNavigate?: (building: CampusBuilding) => void;
   userLocation?: [number, number] | null;
   onEdit?: (building: CampusBuilding) => void;
+  onDelete?: (building: CampusBuilding) => void;
+  canDelete?: boolean;
   navigatingTo?: CampusBuilding | null;
   onCancelNavigation?: () => void;
 }
@@ -30,7 +32,7 @@ const calculateDistance = (
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-const BottomSheet = ({ building, onClose, onNavigate, userLocation, onEdit, navigatingTo, onCancelNavigation }: BottomSheetProps) => {
+const BottomSheet = ({ building, onClose, onNavigate, userLocation, onEdit, onDelete, canDelete = false, navigatingTo, onCancelNavigation }: BottomSheetProps) => {
   const { checkIn, isCheckingIn } = useAttendance();
   const [showManager, setShowManager] = useState(false);
 
@@ -89,6 +91,11 @@ const BottomSheet = ({ building, onClose, onNavigate, userLocation, onEdit, navi
                 {onEdit && (
                   <button onClick={() => onEdit(building)} className="p-2 rounded-full hover:bg-secondary transition-colors" title="Edit Location">
                     <PenSquare className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                )}
+                {canDelete && onDelete && (
+                  <button onClick={() => onDelete(building)} className="p-2 rounded-full hover:bg-destructive/10 transition-colors" title="Delete Location">
+                    <CircleX className="w-4 h-4 text-destructive" />
                   </button>
                 )}
                 <button onClick={onClose} className="p-2 rounded-full hover:bg-secondary transition-colors" title="Close">

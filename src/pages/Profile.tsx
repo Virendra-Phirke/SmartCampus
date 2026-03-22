@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useUser, useClerk } from '@clerk/clerk-react';
 import {
@@ -12,7 +12,9 @@ import {
 } from 'recharts';
 import { format, subDays, startOfDay, isSameDay } from 'date-fns';
 import { useProfile } from '@/hooks/useProfile';
-import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
+import { STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
+import { useDepartmentsCrud } from '@/hooks/useAdminCrud';
+import { useColleges } from '@/hooks/useColleges';
 import { toast } from 'sonner';
 import { useTheme } from '@/components/ThemeProvider';
 
@@ -21,7 +23,30 @@ const Profile = () => {
     const { signOut } = useClerk();
     const { records, todayCount, weekCount, totalCount } = useAttendance();
     const { profile, isLoading, upsertProfile } = useProfile();
+    const { data: colleges = [] } = useColleges();
+    const departmentsCrud = useDepartmentsCrud();
     const { theme, setTheme } = useTheme();
+
+    const profileCampusPrefix = useMemo(() => {
+        const college = colleges.find((c) => c.id === profile?.college_id);
+        if (!college) return '';
+        return (college.short_name || college.name || 'CAMPUS')
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }, [colleges, profile?.college_id]);
+
+    const campusDepartmentOptions = useMemo(() => {
+        const list = departmentsCrud.list.data || [];
+        if (!profileCampusPrefix) return [];
+        return list.filter((d) => String(d.id || '').startsWith(`${profileCampusPrefix}_`));
+    }, [departmentsCrud.list.data, profileCampusPrefix]);
+
+    const resolveDepartmentLabel = (idOrValue?: string | null) => {
+        if (!idOrValue) return 'Not set';
+        const match = campusDepartmentOptions.find((d) => d.id === idOrValue);
+        return match?.name || idOrValue;
+    };
 
     // Edit mode state
     const [editing, setEditing] = useState(false);
@@ -203,7 +228,7 @@ const Profile = () => {
                             {/* Info Cards */}
                             <div className="bg-card rounded-2xl border border-border/50 mb-4 overflow-hidden">
                                 {[
-                                    { icon: BookOpen, label: profile?.role === 'student' ? 'Course / Branch' : 'Department', value: profile?.department_id || profile?.course_id || 'Not set' },
+                                    { icon: BookOpen, label: profile?.role === 'student' ? 'Course / Branch' : 'Department', value: resolveDepartmentLabel(profile?.department_id || profile?.course_id || null) },
                                     ...(profile?.role === 'student' ? [
                                         { icon: GraduationCap, label: 'Year', value: STUDENT_YEARS.find(y => y.id === profile?.year)?.label || profile?.year || 'Not set' },
                                         { icon: Users, label: 'Section', value: profile?.section ? `Section ${profile?.section}` : 'Not set' }
@@ -308,10 +333,11 @@ const Profile = () => {
                                             }
                                         }}
                                         title={editForm.role === 'student' ? 'Course or department' : 'Department'}
+                                        disabled={campusDepartmentOptions.length === 0}
                                         className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none"
                                     >
-                                        <option value="">Select...</option>
-                                        {ENGINEERING_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                                        <option value="">{campusDepartmentOptions.length === 0 ? 'No departments added by admin' : 'Select...'}</option>
+                                        {campusDepartmentOptions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                                     </select>
                                 </div>
 

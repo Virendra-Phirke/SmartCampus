@@ -119,15 +119,22 @@ const CampusMap = ({
   const lastRecenterTriggerRef = useRef(recenterTrigger);
   const styleCacheRef = useRef<Record<string, maplibregl.StyleSpecification>>({});
   const didPreloadStylesRef = useRef(false);
+  const lastCampusIdRef = useRef<string | null>(campus?.id || null);
   const [mapReady, setMapReady] = useState(false);
   const [mapZoom, setMapZoom] = useState(campus.zoom);
 
   const { data: supabaseBuildings } = useBuildings();
 
   const buildingsList = useMemo<CampusBuilding[]>(() => {
-    if (supabaseBuildings && supabaseBuildings.length > 0) return supabaseBuildings.map(toBuildingLegacy);
+    if (supabaseBuildings && supabaseBuildings.length > 0) {
+      const filtered = campus?.id
+        ? supabaseBuildings.filter((b: any) => !b.college_id || b.college_id === campus.id)
+        : supabaseBuildings;
+
+      return filtered.map(toBuildingLegacy);
+    }
     return staticBuildings;
-  }, [supabaseBuildings]);
+  }, [supabaseBuildings, campus?.id]);
 
   const navDistanceMeters = useMemo(() => {
     if (!navigatingTo || !userLocation) return null;
@@ -626,6 +633,27 @@ const CampusMap = ({
       map.getCanvas().style.cursor = '';
     };
   }, [measureMode, mapReady, onMeasureDistance]);
+
+  // ── Handle campus switching ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !campus) return;
+
+    const changed = lastCampusIdRef.current !== campus.id;
+    if (!changed) return;
+
+    lastCampusIdRef.current = campus.id;
+    hasAutoFramedCampusRef.current = false;
+    routeFramedForDestRef.current = null;
+    lastAutoFocusedBuildingIdRef.current = null;
+    setMapZoom(campus.zoom);
+
+    try {
+      map.flyTo({ center: [campus.lng, campus.lat], zoom: campus.zoom, pitch: 45, bearing: -10, duration: 900 });
+    } catch {
+      // no-op
+    }
+  }, [campus, mapReady]);
 
   // ── Auto-zoom to campus buildings on mount ──
   useEffect(() => {

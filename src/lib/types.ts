@@ -22,6 +22,8 @@ export interface Building {
     floors: number;
     departments: string[];
     qr_code: string | null;
+    created_by?: string | null;
+    college_id?: string | null;
     created_at: string;
 }
 

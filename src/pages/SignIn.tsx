@@ -3,6 +3,7 @@ import { useSignIn } from "@clerk/clerk-react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, ArrowRight, Loader2, AlertCircle, Eye, EyeOff, User, KeyRound } from "lucide-react";
+import { authenticateLocalAdmin } from '@/lib/adminAuth';
 
 type AuthMode = 'email' | 'username' | 'otp';
 
@@ -21,6 +22,12 @@ export default function SignInPage() {
     // ── Email + Password / Username + Password ──
     const handlePasswordSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (authenticateLocalAdmin(identifier, password)) {
+            navigate('/?tab=admin', { replace: true });
+            return;
+        }
+
         if (!isLoaded) return;
         setIsLoading(true);
         setError("");
@@ -131,8 +138,17 @@ export default function SignInPage() {
         { id: 'otp', label: 'Email OTP', icon: KeyRound },
     ];
 
+    const useAdminLogin = () => {
+        setMode('username');
+        setIdentifier('ADMIN88');
+        setPassword('Admin@#88');
+        setOtpCode('');
+        setOtpSent(false);
+        setError('');
+    };
+
     return (
-        <div className="min-h-full flex items-center justify-center bg-background px-4 py-12">
+        <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8 pb-[max(24px,env(safe-area-inset-bottom))]">
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -338,6 +354,13 @@ export default function SignInPage() {
                             Sign up
                         </Link>
                     </p>
+                    <button
+                        type="button"
+                        onClick={useAdminLogin}
+                        className="mt-3 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                    >
+                        Admin login
+                    </button>
                 </div>
             </motion.div>
         </div>

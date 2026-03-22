@@ -9,12 +9,15 @@ import type { College } from '@/lib/types';
 import { MapPin, LogOut, Plus, X, Check, Crosshair, Ruler, Flame, Navigation2, ChevronDown, Layers } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useColleges } from '@/hooks/useColleges';
-import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
+import { STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } from '@/lib/collegeData';
+import { useDepartmentsCrud } from '@/hooks/useAdminCrud';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
 import { useTheme } from '@/components/ThemeProvider';
-import { useBuildings, toBuildingLegacy } from '@/hooks/useBuildings';
+import { useBuildings, useDeleteBuilding, toBuildingLegacy } from '@/hooks/useBuildings';
 import { buildings as staticBuildings } from '@/data/campusData';
+import { getLocalAdminCampusId, isLocalAdminAuthenticated } from '@/lib/adminAuth';
+import { useAppDialog } from '@/hooks/useAppDialog';
 
 const CampusMap = lazy(() => import('@/components/CampusMap'));
 const CampusSelectionMap = lazy(() => import('@/components/CampusSelectionMap'));
@@ -22,7 +25,7 @@ const CampusWizard = lazy(() => import('@/components/CampusWizard'));
 const Attendance = lazy(() => import('@/pages/Attendance'));
 const Events = lazy(() => import('@/pages/Events'));
 const Profile = lazy(() => import('@/pages/Profile'));
-const AdminPanel = lazy(() => import('@/pages/AdminPanel'));
+const AdminCampusManager = lazy(() => import('@/components/admin/AdminCampusManager'));
 
 const LAYER_OPTIONS = [
   { key: 'dark', label: 'Dark', emoji: '🌑' },
@@ -54,9 +57,13 @@ const SectionLoader = () => (
 const Index = () => {
   const location = useLocation();
   const { user } = useUser();
+  const { confirm } = useAppDialog();
   const { theme } = useTheme();
   const { profile, isLoading: profileLoading, upsertProfile } = useProfile();
+  const isLocalAdmin = isLocalAdminAuthenticated();
+  const isAdminUser = isLocalAdmin || profile?.role === 'admin';
   const { data: colleges } = useColleges();
+  const departmentsCrud = useDepartmentsCrud();
   const [selectedCampus, setSelectedCampus] = useState<College | null>(null);
   const [activeTab, setActiveTab] = useState('map');
   const [selectedBuilding, setSelectedBuilding] = useState<CampusBuilding | null>(null);
@@ -67,10 +74,17 @@ const Index = () => {
   const [navigationMode, setNavigationMode] = useState<'car' | 'bike' | 'bus' | 'walk'>('walk');
 
   const { data: supabaseBuildings } = useBuildings();
+  const deleteBuilding = useDeleteBuilding();
   const buildingsList = useMemo(() => {
-    if (supabaseBuildings && supabaseBuildings.length > 0) return supabaseBuildings.map(toBuildingLegacy);
+    if (supabaseBuildings && supabaseBuildings.length > 0) {
+      const filtered = selectedCampus
+        ? supabaseBuildings.filter((b: any) => !b.college_id || b.college_id === selectedCampus.id)
+        : supabaseBuildings;
+
+      return filtered.map(toBuildingLegacy);
+    }
     return staticBuildings;
-  }, [supabaseBuildings]);
+  }, [supabaseBuildings, selectedCampus]);
 
   const availableCategories = useMemo(() => {
     return new Set(buildingsList.map(b => b.category));
@@ -98,6 +112,20 @@ const Index = () => {
   const [showNavMenuFor, setShowNavMenuFor] = useState<CampusBuilding | null>(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+
+  const onboardingCampusPrefix = useMemo(() => {
+    if (!selectedCampus) return '';
+    return (selectedCampus.short_name || selectedCampus.name || 'CAMPUS')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }, [selectedCampus]);
+
+  const campusDepartmentOptions = useMemo(() => {
+    const list = departmentsCrud.list.data || [];
+    if (!onboardingCampusPrefix) return [];
+    return list.filter((d) => String(d.id || '').startsWith(`${onboardingCampusPrefix}_`));
+  }, [departmentsCrud.list.data, onboardingCampusPrefix]);
 
   // Flag to allow switching campus (bypass auto-load)
   const [manualSwitch, setManualSwitch] = useState(false);
@@ -131,9 +159,26 @@ const Index = () => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
     if (tab && ['map', 'attendance', 'events', 'profile', 'admin'].includes(tab)) {
+      if (isAdminUser && (tab === 'map' || tab === 'profile')) {
+        setActiveTab('admin');
+        return;
+      }
       setActiveTab(tab);
     }
-  }, [location.search]);
+
+    const campusId = params.get('campus');
+    if (campusId && colleges && colleges.length > 0) {
+      const target = colleges.find((c: College) => c.id === campusId);
+      if (target) setSelectedCampus(target);
+    }
+  }, [location.search, colleges, isAdminUser]);
+
+  useEffect(() => {
+    if (!isAdminUser) return;
+    if (activeTab === 'map' || activeTab === 'profile') {
+      setActiveTab('admin');
+    }
+  }, [isAdminUser, activeTab]);
 
   // ── Auto-load college from profile (unless user manually switched) ──
   useEffect(() => {
@@ -147,6 +192,11 @@ const Index = () => {
   // ── Check if onboarding needed ──
   useEffect(() => {
     if (profileLoading) return;
+
+    if (isLocalAdmin) {
+      setOnboardingStep('none');
+      return;
+    }
 
     // 1. Campus Selection is mandatory first
     if (!profile?.college_id) {
@@ -163,7 +213,23 @@ const Index = () => {
 
     // Fully onboarded
     setOnboardingStep('none');
-  }, [profileLoading, profile?.college_id, profile?.full_name]);
+  }, [profileLoading, profile?.college_id, profile?.full_name, isLocalAdmin]);
+
+  useEffect(() => {
+    if (!isLocalAdmin) return;
+    if (selectedCampus || !colleges || colleges.length === 0) return;
+
+    const savedCampusId = getLocalAdminCampusId();
+    if (savedCampusId) {
+      const savedCampus = colleges.find((c) => c.id === savedCampusId);
+      if (savedCampus) {
+        setSelectedCampus(savedCampus);
+        return;
+      }
+    }
+
+    setSelectedCampus(colleges[0]);
+  }, [isLocalAdmin, selectedCampus, colleges]);
 
   useEffect(() => {
     if (profile?.role === 'student' || profile?.role === 'faculty') {
@@ -324,6 +390,7 @@ const Index = () => {
   // ── Save college on first selection ──
   const handleSelectCampus = useCallback(async (college: College) => {
     setSelectedCampus(college);
+    setOnboardForm((prev) => ({ ...prev, course_id: '', department_id: '' }));
     setManualSwitch(false);
     try {
       await upsertProfile.mutateAsync({ college_id: college.id });
@@ -335,6 +402,12 @@ const Index = () => {
 
   // ── Switch campus handler ──
   const handleSwitchCampus = () => {
+    if (isAdminUser) {
+      setActiveTab('admin');
+      toast.info('Select a campus from Admin tab');
+      return;
+    }
+
     setManualSwitch(true);
     setSelectedCampus(null);
     setOnboardingStep('college');
@@ -352,6 +425,15 @@ const Index = () => {
 
   // ── Onboarding: save full profile ──
   const handleProfileSave = async () => {
+    if (selectedRole === 'student' && !onboardForm.course_id) {
+      toast.error('Please select your campus department');
+      return;
+    }
+    if ((selectedRole === 'faculty' || selectedRole === 'admin' || selectedRole === 'staff') && !onboardForm.department_id) {
+      toast.error('Please select your department');
+      return;
+    }
+
     try {
       await upsertProfile.mutateAsync({
         full_name: user?.fullName || user?.firstName || profile?.full_name || 'User',
@@ -372,6 +454,15 @@ const Index = () => {
     }
   };
 
+  useEffect(() => {
+    if (selectedRole === 'student' && onboardForm.course_id && !campusDepartmentOptions.some((d) => d.id === onboardForm.course_id)) {
+      setOnboardForm((prev) => ({ ...prev, course_id: '' }));
+    }
+    if ((selectedRole === 'faculty' || selectedRole === 'admin' || selectedRole === 'staff') && onboardForm.department_id && !campusDepartmentOptions.some((d) => d.id === onboardForm.department_id)) {
+      setOnboardForm((prev) => ({ ...prev, department_id: '' }));
+    }
+  }, [campusDepartmentOptions, onboardForm.course_id, onboardForm.department_id, selectedRole]);
+
   const handleSelectBuilding = (building: CampusBuilding) => {
     setSelectedBuilding(building);
     setActiveTab('map');
@@ -391,6 +482,25 @@ const Index = () => {
     setSelectedBuilding(null);
   }, []);
 
+  const handleDeleteBuilding = useCallback(async (building: CampusBuilding) => {
+    const ok = await confirm({
+      title: 'Delete location?',
+      description: `Delete ${building.name}? This action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    try {
+      await deleteBuilding.mutateAsync(building.id);
+      setSelectedBuilding(null);
+      toast.success('Location deleted');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to delete location');
+    }
+  }, [confirm, deleteBuilding]);
+
   const handleNavigate = useCallback((building: CampusBuilding) => {
     setShowNavMenuFor(building);
     setSelectedBuilding(null);
@@ -406,7 +516,7 @@ const Index = () => {
   const fmtDist = (m: number) => m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
 
   // ── Campus Selection Screen ──
-  if (onboardingStep === 'college') {
+  if (!isLocalAdmin && onboardingStep === 'college') {
     return (
       <div className="h-full w-full relative">
         <Suspense fallback={<SectionLoader />}>
@@ -422,6 +532,13 @@ const Index = () => {
   }
 
   if (!selectedCampus) {
+    if (isLocalAdmin) {
+      return (
+        <div className="h-full w-full flex items-center justify-center bg-background">
+          <div className="h-8 w-8 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+        </div>
+      );
+    }
     return (
       <div className="h-full w-full">
         <Suspense fallback={<SectionLoader />}>
@@ -432,7 +549,7 @@ const Index = () => {
   }
 
   // ── Onboarding: Role Selection ──
-  if (onboardingStep === 'role') {
+  if (!isLocalAdmin && onboardingStep === 'role') {
     return (
       <div className="h-full flex flex-col bg-background px-5 pt-[max(env(safe-area-inset-top),16px)]">
         <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
@@ -472,7 +589,7 @@ const Index = () => {
   }
 
   // ── Onboarding: Profile Fill ──
-  if (onboardingStep === 'profile') {
+  if (!isLocalAdmin && onboardingStep === 'profile') {
     return (
       <div className="h-full flex flex-col bg-background px-5 pt-[max(env(safe-area-inset-top),16px)] pb-8 overflow-y-auto">
         <div className="max-w-sm mx-auto w-full">
@@ -515,10 +632,11 @@ const Index = () => {
                   if (selectedRole === 'student') setOnboardForm({ ...onboardForm, course_id: e.target.value });
                   else setOnboardForm({ ...onboardForm, department_id: e.target.value });
                 }}
+                disabled={campusDepartmentOptions.length === 0}
                 className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none mt-1"
               >
-                <option value="">Select...</option>
-                {ENGINEERING_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                <option value="">{campusDepartmentOptions.length === 0 ? 'No departments added by admin' : 'Select...'}</option>
+                {campusDepartmentOptions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
 
@@ -602,7 +720,7 @@ const Index = () => {
 
   return (
     <div className="h-full flex flex-col bg-background relative overflow-hidden">
-      {activeTab === 'map' ? (
+      {activeTab === 'map' && !isAdminUser ? (
         <>
           {/* Map */}
           <div className="absolute inset-0 z-0">
@@ -807,6 +925,8 @@ const Index = () => {
             onNavigate={handleNavigate}
             userLocation={userLocation}
             onEdit={handleEditBuilding}
+            onDelete={handleDeleteBuilding}
+            canDelete={isAdminUser}
             navigatingTo={navigatingTo}
             onCancelNavigation={() => setNavigatingTo(null)}
           />
@@ -829,6 +949,7 @@ const Index = () => {
             <Suspense fallback={<SectionLoader />}>
               <CampusWizard
                 initialLocation={{ lat: mapCenterRef.current[0] || selectedCampus.lat, lng: mapCenterRef.current[1] || selectedCampus.lng }}
+                campusId={selectedCampus.id}
                 onClose={() => { cancelAddLocation(); setEditingBuilding(null); }}
               />
             </Suspense>
@@ -839,13 +960,20 @@ const Index = () => {
           <Suspense fallback={<SectionLoader />}>
             {activeTab === 'attendance' && <Attendance userLocation={userLocation} />}
             {activeTab === 'events' && <Events />}
-            {activeTab === 'admin' && profile?.role === 'admin' && <AdminPanel />}
-            {activeTab === 'profile' && <Profile />}
+            {activeTab === 'admin' && isAdminUser && (
+              <AdminCampusManager
+                onCampusSelected={(campus) => {
+                  setSelectedCampus(campus);
+                  setShowCampusTrigger((v) => v + 1);
+                }}
+              />
+            )}
+            {activeTab === 'profile' && !isAdminUser && <Profile />}
           </Suspense>
         </div>
       )}
 
-      <BottomNav active={activeTab} onNavigate={setActiveTab} isAdmin={profile?.role === 'admin'} />
+      <BottomNav active={activeTab} onNavigate={setActiveTab} isAdmin={isAdminUser} />
     </div>
   );
 };

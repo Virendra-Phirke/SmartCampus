@@ -93,7 +93,9 @@ const Attendance = ({ userLocation }: AttendanceProps = {}) => {
     // Creator-side: people who scanned the QR
     const [scannedPeople, setScannedPeople] = useState<ScannedPerson[]>([]);
 
-    const { records, isLoading, creatorSessions, isCreatorLoading, todayCount, weekCount, checkIn, deleteSession, updateSession } = useAttendance();
+    const { records, isLoading, creatorSessions, isCreatorLoading, todayCount, weekCount, checkIn, deleteSession, updateSession } = useAttendance({
+        includeAllSessions: role === 'admin',
+    });
     const { data: buildings } = useBuildings();
     const { data: colleges } = useColleges();
 

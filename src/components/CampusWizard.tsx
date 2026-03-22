@@ -22,9 +22,10 @@ type WizardStep = 'location' | 'type' | 'details' | 'success';
 interface CampusWizardProps {
     onClose: () => void;
     initialLocation?: { lat: number; lng: number };
+    campusId?: string;
 }
 
-export default function CampusWizard({ onClose, initialLocation }: CampusWizardProps) {
+export default function CampusWizard({ onClose, initialLocation, campusId }: CampusWizardProps) {
     const { alert } = useAppDialog();
     const [step, setStep] = useState<WizardStep>('type');
     const [selectedType, setSelectedType] = useState<typeof BUILDING_TYPES[number] | null>(null);
@@ -68,6 +69,7 @@ export default function CampusWizard({ onClose, initialLocation }: CampusWizardP
                 lat: location.lat,
                 lng: location.lng,
                 qr_code,
+                college_id: campusId || null,
             });
 
             setSavedBuildingId(id);

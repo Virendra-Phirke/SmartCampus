@@ -3,10 +3,11 @@ import { useUser } from '@clerk/clerk-react';
 import { supabase } from '@/lib/supabase';
 import type { AttendanceRecord } from '@/lib/types';
 
-export const useAttendance = () => {
+export const useAttendance = (options?: { includeAllSessions?: boolean }) => {
     const { user } = useUser();
     const queryClient = useQueryClient();
     const userId = user?.id || '';
+    const includeAllSessions = !!options?.includeAllSessions;
 
     const attendanceQuery = useQuery<AttendanceRecord[]>({
         queryKey: ['attendance', userId],
@@ -160,15 +161,20 @@ export const useAttendance = () => {
     });
 
     const creatorSessionsQuery = useQuery({
-        queryKey: ['creator-sessions', userId],
+        queryKey: ['creator-sessions', userId, includeAllSessions],
         queryFn: async () => {
             if (!userId) return [];
             // Fetch sessions created by user
-            const { data: sessions, error } = await supabase
+            let query = supabase
                 .from('attendance_sessions')
                 .select('*')
-                .eq('created_by', userId)
                 .order('created_at', { ascending: false });
+
+            if (!includeAllSessions) {
+                query = query.eq('created_by', userId);
+            }
+
+            const { data: sessions, error } = await query;
 
             if (error) {
                 console.error('Error fetching creator sessions:', error);

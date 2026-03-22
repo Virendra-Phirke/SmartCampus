@@ -52,10 +52,63 @@ Deno.serve(async (req: Request) => {
 		webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 		const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-		let query = admin.from('push_subscriptions').select('id, user_id, subscription');
-		if (payload.actorUserId) {
-			query = query.neq('user_id', payload.actorUserId);
+		if (!payload.actorUserId) {
+			return new Response(JSON.stringify({ sent: 0, removed: 0 }), {
+				status: 200,
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+			});
 		}
+
+		const { data: actorProfile, error: actorProfileError } = await admin
+			.from('user_profiles')
+			.select('college_id')
+			.eq('clerk_user_id', payload.actorUserId)
+			.maybeSingle();
+
+		if (actorProfileError) {
+			return new Response(JSON.stringify({ error: actorProfileError.message }), {
+				status: 500,
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+			});
+		}
+
+		const actorCollegeId = actorProfile?.college_id || null;
+		if (!actorCollegeId) {
+			return new Response(JSON.stringify({ sent: 0, removed: 0 }), {
+				status: 200,
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+			});
+		}
+
+		const { data: campusUsers, error: campusUsersError } = await admin
+			.from('user_profiles')
+			.select('clerk_user_id, role')
+			.eq('college_id', actorCollegeId)
+			.neq('role', 'admin')
+			.neq('clerk_user_id', payload.actorUserId);
+
+		if (campusUsersError) {
+			return new Response(JSON.stringify({ error: campusUsersError.message }), {
+				status: 500,
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+			});
+		}
+
+		const recipientUserIds = (campusUsers || [])
+			.map((u: { clerk_user_id?: string | null }) => u.clerk_user_id)
+			.filter((id: string | null | undefined): id is string => Boolean(id));
+
+		if (!recipientUserIds.length) {
+			return new Response(JSON.stringify({ sent: 0, removed: 0 }), {
+				status: 200,
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+			});
+		}
+
+		const query = admin
+			.from('push_subscriptions')
+			.select('id, user_id, subscription')
+			.in('user_id', recipientUserIds);
 
 		const { data: subs, error } = await query;
 		if (error) {
