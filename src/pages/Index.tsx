@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, lazy, useMemo } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import SearchBar from '@/components/SearchBar';
 import BottomSheet from '@/components/BottomSheet';
@@ -13,6 +13,8 @@ import { ENGINEERING_DEPARTMENTS, STUDENT_YEARS, CLASS_SECTIONS, STAFF_TYPES } f
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
 import { useTheme } from '@/components/ThemeProvider';
+import { useBuildings, toBuildingLegacy } from '@/hooks/useBuildings';
+import { buildings as staticBuildings } from '@/data/campusData';
 
 const CampusMap = lazy(() => import('@/components/CampusMap'));
 const CampusSelectionMap = lazy(() => import('@/components/CampusSelectionMap'));
@@ -62,6 +64,16 @@ const Index = () => {
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<CampusBuilding | null>(null);
+
+  const { data: supabaseBuildings } = useBuildings();
+  const buildingsList = useMemo(() => {
+    if (supabaseBuildings && supabaseBuildings.length > 0) return supabaseBuildings.map(toBuildingLegacy);
+    return staticBuildings;
+  }, [supabaseBuildings]);
+
+  const availableCategories = useMemo(() => {
+    return new Set(buildingsList.map(b => b.category));
+  }, [buildingsList]);
 
   // Map feature states
   const [activeLayer, setActiveLayer] = useState(() => {
@@ -618,7 +630,7 @@ const Index = () => {
                   </button>
                   {showFilterDropdown && (
                     <div className="absolute top-full left-0 mt-1 bg-card/95  border border-border/50 rounded-xl shadow-2xl p-1 z-50 min-w-[120px]">
-                      {FILTER_OPTIONS.map(f => (
+                      {FILTER_OPTIONS.filter(f => f.key === 'all' || availableCategories.has(f.key as any)).map(f => (
                         <button key={f.key} onClick={() => { setActiveFilter(f.key); setShowFilterDropdown(false); }}
                           className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${activeFilter === f.key ? 'bg-primary/15 text-primary' : 'text-foreground hover:bg-muted'}`}
                         >{f.label}</button>
@@ -721,12 +733,22 @@ const Index = () => {
 
           {/* Add Mode */}
           {isAddingLocation && (
-            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[400] flex items-center gap-3">
-              <button onClick={cancelAddLocation} className="bg-background text-foreground px-4 py-2.5 rounded-full shadow-xl font-medium border border-border flex items-center gap-1.5 text-sm">
+            <div className="absolute bottom-28 pb-[env(safe-area-inset-bottom)] left-1/2 -translate-x-1/2 z-[400] flex items-center gap-3">
+              <button 
+                onClick={cancelAddLocation} 
+                className="bg-card text-foreground px-5 py-3 rounded-full shadow-lg font-medium border border-border flex items-center gap-2 text-sm transition-transform active:scale-95"
+              >
                 <X className="w-4 h-4" /> Cancel
               </button>
-              <button onClick={() => setShowBuildingForm(true)} className="bg-primary text-primary-foreground px-4 py-2.5 rounded-full shadow-xl font-semibold flex items-center gap-1.5 text-sm border-2 border-primary/20">
-                <Check className="w-4 h-4" /> Set Location
+              <button 
+                onClick={() => setShowBuildingForm(true)} 
+                className="bg-teal-500 text-white px-6 py-2.5 rounded-[30px] shadow-lg shadow-teal-500/30 flex items-center gap-3 transition-transform active:scale-95 hover:bg-teal-600"
+              >
+                <Check className="w-4 h-4" />
+                <div className="flex flex-col items-start text-xs font-bold leading-tight uppercase tracking-wider">
+                  <span>Set</span>
+                  <span>Location</span>
+                </div>
               </button>
             </div>
           )}

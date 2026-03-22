@@ -15,6 +15,7 @@ interface CampusMapProps {
   userAccuracy?: number | null;
   userHeading?: number | null;
   navigatingTo?: CampusBuilding | null;
+  onCancelNavigation?: () => void;
   isAddingLocation?: boolean;
   onCenterChange?: (center: [number, number]) => void;
   activeFilter?: string | null;
@@ -27,9 +28,7 @@ interface CampusMapProps {
   showCampusTrigger?: number;
 }
 
-const categoryIconEmojis: Record<string, string> = {
-  academic: '🏫', admin: '🏛️', facility: '🏢', sports: '⚽', hostel: '🏠',
-};
+
 
 // ── MapLibre Style URLs (unified naming) ──
 const STYLE_URLS: Record<string, string | maplibregl.StyleSpecification> = {
@@ -79,7 +78,7 @@ const haversineMeters = (lat1: number, lng1: number, lat2: number, lng2: number)
 
 const CampusMap = ({
   campus, selectedBuilding, onSelectBuilding, userLocation, userAccuracy,
-  userHeading, navigatingTo, isAddingLocation = false, onCenterChange,
+  userHeading, navigatingTo, onCancelNavigation, isAddingLocation = false, onCenterChange,
   activeFilter, isFollowing, activeLayer = 'dark',
   showHeatMap = false, measureMode = false, onMeasureDistance, recenterTrigger = 0, showCampusTrigger = 0,
 }: CampusMapProps) => {
@@ -164,7 +163,12 @@ const CampusMap = ({
       attributionControl: false,
     });
 
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showCompass: true }), 'top-right');
+    map.addControl(new maplibregl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+      showUserHeading: true
+    }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-left');
     map.addControl(new maplibregl.FullscreenControl(), 'top-right');
 
@@ -205,6 +209,8 @@ const CampusMap = ({
   }, [activeLayer]);
 
   // ── Draw College Campus Marker ──
+  const collegeLucideSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a2 2 0 0 1-.019 3.838L12.82 19.22a2 2 0 0 1-1.64 0L2.6 14.76a2 2 0 0 1-.02-3.84L11.18 6.54a2 2 0 0 1 1.64 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>`;
+
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
@@ -228,12 +234,12 @@ const CampusMap = ({
       el.className = 'campus-main-marker';
       el.style.zIndex = '50';
       el.innerHTML = `
-        <div style="position: relative;">
-          <div style="background:hsl(210,100%,55%);width:32px;height:32px;border-radius:50%;border:3px solid white;box-shadow:0 0 15px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:16px;">
-            🎓
+        <div style="position: relative; display: flex; flex-direction: column; items: center;">
+          <div style="background:hsl(210,100%,55%);width:40px;height:40px;border-radius:50%;border:4px solid white;box-shadow:0 0 20px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white; z-index: 2; position: relative;">
+            ${collegeLucideSvg}
           </div>
-          <div id="college-dist-label" class="marker-dist-label" style="display: ${distLabel ? 'block' : 'none'}; position: absolute; top: -25px; left: 50%; transform: translateX(-50%); white-space: nowrap;">
-            ${distLabel ? `🎓 ${distLabel}` : ''}
+          <div id="college-dist-label" class="marker-dist-label" style="display: ${distLabel ? 'block' : 'none'}; position: absolute; top: -30px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: rgba(0,0,0,0.8); color: white; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 13px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 3;">
+            ${distLabel}
           </div>
         </div>
       `;
@@ -242,7 +248,7 @@ const CampusMap = ({
         .addTo(map);
 
       // Label
-      const popup = new maplibregl.Popup({ offset: 15, closeButton: false, closeOnClick: false, className: 'campus-tooltip-popup' })
+      const popup = new maplibregl.Popup({ offset: 25, closeButton: false, closeOnClick: false, className: 'campus-tooltip-popup' })
         .setHTML(`<strong>${campus.short_name || campus.name}</strong>`);
       el.addEventListener('mouseenter', () => popup.setLngLat([campus.lng, campus.lat]).addTo(map));
       el.addEventListener('mouseleave', () => popup.remove());
@@ -264,13 +270,21 @@ const CampusMap = ({
       campusMarkerRef.current.setLngLat([campus.lng, campus.lat]);
       const distEl = campusMarkerRef.current.getElement().querySelector('#college-dist-label') as HTMLDivElement;
       if (distEl) {
-        distEl.textContent = distLabel ? `🎓 ${distLabel}` : '';
+        distEl.innerHTML = distLabel;
         distEl.style.display = distLabel ? 'block' : 'none';
       }
     }
   }, [mapReady, campus, userLocation, onSelectBuilding]);
 
   // ── Building markers ──
+  const categoryLucideSvgs: Record<string, string> = useMemo(() => ({
+    academic: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+    admin: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
+    facility: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>`,
+    sports: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`,
+    hostel: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  }), []);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -284,8 +298,7 @@ const CampusMap = ({
 
       const isSelected = selectedBuilding?.id === b.id;
       const color = isSelected ? 'hsl(38, 92%, 55%)' : categoryColors[b.category];
-      const size = isSelected ? 18 : 13;
-      const emoji = categoryIconEmojis[b.category] || '📍';
+      const svgIcon = categoryLucideSvgs[b.category] || categoryLucideSvgs.facility;
 
       // Distance from user
       let distLabel = '';
@@ -297,24 +310,52 @@ const CampusMap = ({
       const el = document.createElement('div');
       el.className = 'campus-marker';
 
-      const dot = document.createElement('div');
-      dot.style.cssText = `
-          width:${size}px;height:${size}px;
-          background:${color};
-          border:2px solid rgba(10,12,20,0.8);
-          border-radius:50%;
-          box-shadow:0 0 ${isSelected ? 18 : 10}px ${color}80;
-          transition:all .3s ease;
-          ${isSelected ? 'animation:pulse-glow 2s ease-in-out infinite;' : ''}
-      `;
-      el.appendChild(dot);
+      // Design: Google Maps Style
+      // Selected = Red Teardrop pin, Unselected = Colored dot with text to the right
+      
+      const distText = distLabel ? `<span style="font-size:10px; margin-left:4px; opacity:0.85; font-weight:normal;">${distLabel}</span>` : '';
 
-      const label = document.createElement('div');
-      label.className = 'marker-dist-label';
-      label.textContent = distLabel ? `${emoji} ${distLabel}` : '';
-      label.style.display = distLabel ? 'block' : 'none';
-      el.appendChild(label);
+      if (isSelected) {
+        // Active selected Google Maps Style big red drop pin
+        el.style.zIndex = '100';
+        el.innerHTML = `
+          <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translateY(-16px); filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">
+            <svg viewBox="0 0 24 34" width="34" height="48" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 0C5.373 0 0 5.373 0 12c0 8.5 12 22 12 22s12-13.5 12-22C24 5.373 18.627 0 12 0z" fill="#ea4335" />
+              <circle cx="12" cy="12" r="8" fill="#ffffff" />
+            </svg>
+            <div style="position: absolute; top: 8px; color: #ea4335; display:flex; align-items:center; justify-content:center;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${svgIcon.replace(/<svg[^>]*>|<\/svg>/g, '')}</svg>
+            </div>
+            <div style="position: absolute; top: -28px; white-space: nowrap; background: white; color: #202124; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; box-shadow: 0 1px 4px rgba(0,0,0,0.3);">
+              ${b.shortName} <span id="building-dist-${b.id}" style="color: #5f6368; font-size: 11px; margin-left: 2px; display: ${distLabel ? 'inline' : 'none'};">${distLabel}</span>
+            </div>
+          </div>
+        `;
+      } else {
+        // Unselected Google Maps Style POI
+        el.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 4px; pointer-events: none;">
+            <div style="width: 20px; height: 20px; border-radius: 50%; background: ${categoryColors[b.category] || '#4285f4'}; border: 1.5px solid white; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); pointer-events: auto; cursor: pointer;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${svgIcon.replace(/<svg[^>]*>|<\/svg>/g, '')}</svg>
+            </div>
+            <div style="font-size: 12px; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: white; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 1px 4px rgba(0,0,0,0.8); pointer-events: auto; cursor: pointer; white-space: nowrap; letter-spacing: -0.2px;">
+              ${b.shortName} <span id="building-dist-${b.id}" style="font-weight: 400; font-size: 10px; color: #e8eaed; margin-left: 2px; display: ${distLabel ? 'inline' : 'none'};">${distLabel}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      // Grab reference to distance label inside innerHTML for fast updates
+      const label = el.querySelector(`#building-dist-${b.id}`) as HTMLDivElement;
       markerDistanceLabelRef.current[b.id] = label;
+
+      // Hover effects
+      const pillDiv = el.firstElementChild as HTMLElement;
+      if (!isSelected && pillDiv) {
+        pillDiv.addEventListener('mouseenter', () => { pillDiv.style.transform = 'scale(1.1)'; });
+        pillDiv.addEventListener('mouseleave', () => { pillDiv.style.transform = 'scale(1)'; });
+      }
 
       el.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -325,13 +366,6 @@ const CampusMap = ({
         .setLngLat([b.lng, b.lat])
         .addTo(map);
 
-      // Tooltip popup
-      const popup = new maplibregl.Popup({ offset: 15, closeButton: false, closeOnClick: false, className: 'campus-tooltip-popup' })
-        .setHTML(`<strong>${b.shortName}</strong>`);
-
-      el.addEventListener('mouseenter', () => { popup.setLngLat([b.lng, b.lat]).addTo(map); });
-      el.addEventListener('mouseleave', () => { popup.remove(); });
-
       markersRef.current[b.id] = marker;
     });
 
@@ -339,7 +373,7 @@ const CampusMap = ({
     if (selectedBuilding && map) {
       map.flyTo({ center: [selectedBuilding.lng, selectedBuilding.lat], zoom: 18, duration: 600 });
     }
-  }, [buildingsList, activeFilter, selectedBuilding, onSelectBuilding, userLocation]);
+  }, [buildingsList, activeFilter, selectedBuilding, onSelectBuilding, userLocation, categoryLucideSvgs]);
 
   // ── Update marker distance labels without recreating markers ──
   useEffect(() => {
@@ -362,10 +396,9 @@ const CampusMap = ({
       const label = markerDistanceLabelRef.current[b.id];
       if (!label) return;
 
-      const emoji = categoryIconEmojis[b.category] || '📍';
       const meters = haversineMeters(userLocation[0], userLocation[1], b.lat, b.lng);
-      label.textContent = `${emoji} ${fmtDist(meters)}`;
-      label.style.display = 'block';
+      label.innerHTML = fmtDist(meters);
+      label.style.display = 'inline';
     });
   }, [userLocation, buildingsList, activeFilter]);
 
@@ -602,12 +635,30 @@ const CampusMap = ({
 
       {/* Navigation active banner */}
       {navigatingTo && userLocation && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-[400]">
-          <div className="bg-primary/90  text-primary-foreground px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-2 shadow-lg shadow-primary/20 border border-primary/30">
-            <div className="w-2 h-2 bg-primary-foreground rounded-full animate-pulse" />
-            {navDistanceMeters != null
-              ? `${navigatingTo.shortName} · ${fmtDist(navDistanceMeters)} · ${walkingETA(navDistanceMeters)}`
-              : navigatingTo.shortName}
+        <div className="absolute top-[max(env(safe-area-inset-top),8px)] left-1/2 transform -translate-x-1/2 z-[400] w-[90%] max-w-sm">
+          <div className="bg-card/95 backdrop-blur-sm text-foreground px-4 py-3 rounded-2xl shadow-xl border border-border flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold">{navigatingTo.shortName}</span>
+                <span className="text-xs text-muted-foreground font-medium">
+                  {navDistanceMeters != null ? <span className="text-blue-500">{walkingETA(navDistanceMeters)}</span> : 'Calculating...'}
+                  {navDistanceMeters != null && ` · ${fmtDist(navDistanceMeters)}`}
+                </span>
+              </div>
+            </div>
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if(onCancelNavigation) onCancelNavigation();
+              }} 
+              className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
           </div>
         </div>
       )}
