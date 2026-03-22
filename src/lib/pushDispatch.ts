@@ -13,10 +13,11 @@ interface PushDispatchInput {
 export async function dispatchBackgroundPush(input: PushDispatchInput): Promise<void> {
   if (!input?.resourceId) return;
 
-  // Disabled by default in local/dev to avoid noisy CORS/preflight failures.
-  // Enable in production with: VITE_ENABLE_SERVER_PUSH=true
-  const serverPushEnabled = String(import.meta.env.VITE_ENABLE_SERVER_PUSH || '').toLowerCase() === 'true';
-  if (!serverPushEnabled) return;
+  // Force-enable for real deployments; keep localhost quiet unless explicitly opted in.
+  const host = typeof window !== 'undefined' ? window.location.hostname : '';
+  const localHost = host === 'localhost' || host === '127.0.0.1';
+  const localOptIn = String(import.meta.env.VITE_ENABLE_SERVER_PUSH || '').toLowerCase() === 'true';
+  if (localHost && !localOptIn) return;
 
   try {
     const { error } = await supabase.functions.invoke('send-push', {
